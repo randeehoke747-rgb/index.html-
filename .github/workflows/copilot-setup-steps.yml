@@ -162,3 +162,44 @@ ip addr
 http://YOUR_SERVER_IP:8080
 docker compose ps
 docker compose logs -f
+gateway/src/main.rs
+use axum::{Router, routing::get};
+use std::fs;
+
+#[tokio::main]
+async fn main() {
+
+    let app = Router::new()
+        .route("/", get(|| async {
+            fs::read_to_string("/web/index.html")
+                .unwrap_or("UI missing".into())
+        }))
+        .route("/health", get(|| async { "OK" }))
+        .route("/state", get(|| async { "RUNNING" }));
+
+    // ✅ FIXED NETWORK BIND
+    let listener =
+        tokio::net::TcpListener::bind("0.0.0.0:8080")
+            .await
+            .unwrap();
+
+    println!("Titan Gateway running on 0.0.0.0:8080");
+
+    axum::serve(listener, app)
+        .await
+        .unwrap(); loop
+}ports:
+  - "8080:8080"
+  gateway:
+  image: rust:latest
+  container_name: titan-gateway
+  working_dir: /app
+  volumes:
+    - ./gateway:/app
+    - ./web:/web
+  command: bash -c "cargo run"
+  ports:
+    - "8080:8080"
+  restart: unless-stopped
+ sudo ufw allow 8080/tcpsudo ufw reload
+ 
