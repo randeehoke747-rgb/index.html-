@@ -41,7 +41,8 @@ services:
     volumes:
       - ./workers:/app
     command: bash -c "cargo run"
-    restart: unless-stoppedmkdir gateway
+    restart: unless-stopped
+    mkdir gateway
 mkdir control-plane
 mkdir iron-giant
 mkdir workers
