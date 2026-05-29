@@ -160,3 +160,5 @@ docker compose up --build
 http://localhost:8080
 ip addr
 http://YOUR_SERVER_IP:8080
+docker compose ps
+docker compose logs -f
