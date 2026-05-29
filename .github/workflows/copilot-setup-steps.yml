@@ -1,0 +1,26 @@
+iron-giant/Cargo.toml
+[package]
+name = "iron-giant"
+version = "0.1.0"
+edition = "2021"
+iron-giant/src/main.rs
+use std::time::Duration;
+
+fn main() {
+
+    loop {
+
+        let cpu = 0.72;
+        let latency = 120.0;
+
+        if cpu > 0.85 {
+            println!("📈 SCALE UP");
+        } else if latency > 200.0 {
+            println!("🌍 ROUTE SHIFT");
+        } else {
+            println!("🧠 SYSTEM HEALTHY");
+        }
+
+        std::thread::sleep(Duration::from_secs(5));
+    }
+}
