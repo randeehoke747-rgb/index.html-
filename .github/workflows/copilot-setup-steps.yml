@@ -1,5 +1,6 @@
 mkdir titan-cloud-os
-cd titan-cloud-ostitan-cloud-os/docker-compose.ymlversion: "3.9"
+cd titan-cloud-ostitan-cloud-os
+docker-compose.ymlversion: "3.9"
 
 services:
 
