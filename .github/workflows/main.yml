@@ -1,0 +1,116 @@
+Browser (Chrome / Safari / Edge / Mobile)
+        ↓ HTTP + WebSocket
+Rust Control Server
+        ↓ launches
+Titan Node 1
+Titan Node 2
+Titan Node 3titan-browser-launcher/
+├── Cargo.toml
+├── src/
+│   └── main.rs
+├── web/
+│   ├── index.html
+│   ├── app.js
+│   └── style.css[package]
+name = "titan-browser-launcher"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1use std::process::{Child, Command};
+use std::sync::{Arc, Mutex};
+use warp::Filter;
+
+type Shared = Arc<Mutex<Vec<Child>>>;
+
+#[tokio::main]
+async fn main() {
+    let state: Shared = Arc::new(Mutex::new(vec![]));
+
+    let start_state = state.clone();
+    let start = warp::path!("api" / "start")
+        .and(warp::post())
+        .map(move || {
+            let mut procs = start_state.lock().unwrap();
+
+            for i in 1..=3 {
+                let child = Command::new("cargo")
+                    .args(["run", "--bin", "titan-node"])
+                    .spawn()
+                    .unwrap();
+
+                procs.push(child);
+            }
+
+            "Titan devnet started"
+        });
+
+    let stop_state = state.clone();
+    let stop = warp::path!("api" / "stop")
+        .and(warp::post())
+        .map(move || {
+            let mut procs = stop_state.lock().unwrap();
+
+            for p in procs.iter_mut() {
+                let _ = p.kill();
+            }
+
+            procs.clear();
+
+            "Titan devnet stopped"
+        });
+
+    let web = warp::fs::dir("web");
+
+    let routes = start.or(stop).or(web);
+
+    println!("Open browser: http://localhost:8080");
+
+    warp::serve(routes).run(([0,0,0,0], 8080)).await;
+}<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Titan Launcher</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h1>Titan Browser Dashboard</h1>
+
+<button onclick="startNet()">Launch Network</button>
+<button onclick="stopNet()">Stop Network</button>
+
+<pre id="status">Ready</pre>
+
+<script src="app.js"></script>
+</body>
+</htmlasync function startNet() {
+    let r = await fetch('/api/start', {method:'POST'});
+    document.getElementById("status").textContent =
+        await r.text();
+}
+
+async function stopNet() {
+    let r = await fetch('/api/stop', {method:'POST'});
+    document.getElementById("status").textContent =
+        await body {
+    font-family: Arial;
+    padding: 40px;
+}
+
+button {
+    font-size: 18px;
+    margin-right: 10px;
+    padding: 10px 20px;
+}
+
+pre {
+    margin-top: 20px;
+    background: #eee;
+    padding: 20px;
+}cargo run
+http://localhost:8080
