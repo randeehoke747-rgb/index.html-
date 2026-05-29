@@ -1,4 +1,108 @@
-iron-giant/Cargo.toml
+mkdir titan-cloud-os
+cd titan-cloud-ostitan-cloud-os/docker-compose.ymlversion: "3.9"
+
+services:
+
+  gateway:
+    image: rust:latest
+    container_name: titan-gateway
+    working_dir: /app
+    volumes:
+      - ./gateway:/app
+      - ./web:/web
+    command: bash -c "cargo run"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  control-plane:
+    image: rust:latest
+    container_name: titan-control-plane
+    working_dir: /app
+    volumes:
+      - ./control-plane:/app
+    command: bash -c "cargo run"
+    restart: unless-stopped
+
+  iron-giant:
+    image: rust:latest
+    container_name: iron-giant
+    working_dir: /app
+    volumes:
+      - ./iron-giant:/app
+    command: bash -c "cargo run"
+    restart: unless-stopped
+
+  worker:
+    image: rust:latest
+    container_name: titan-worker
+    working_dir: /app
+    volumes:
+      - ./workers:/app
+    command: bash -c "cargo run"
+    restart: unless-stoppedmkdir gateway
+mkdir control-plane
+mkdir iron-giant
+mkdir workers
+mkdir webweb/index.html<!DOCTYPE html>
+<html>
+<head>
+  <title>Titan Cloud Desktop</title>
+</head>
+
+<body style="background:#0b1020;color:white;font-family:sans-serif">
+
+<h1>☁️ Titan Cloud Desktop</h1>
+
+<p>Status: ONLINE</p>
+<p>Iron Giant: ACTIVE</p>
+
+<button onclick="checkHealth()">
+Health Check
+</button>
+
+<script>
+async function checkHealth() {
+  const res = await fetch('/health');
+  const txt = await res.text();
+  alert(txt);
+}
+</script>
+
+</body>
+</html>gateway/Cargo.toml[package]
+name = "gateway"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }gateway/src/main.rs
+use axum::{Router, routing::get};
+use std::fs;
+
+#[tokio::main]
+async fn main() {
+
+    let app = Router::new()
+        .route("/", get(|| async {
+            fs::read_to_string("/web/index.html")
+                .unwrap_or("UI missing".into())
+        }))
+        .route("/health", get(|| async { "OK" }));
+
+    // IMPORTANT FIX
+    let listener =
+        tokio::net::TcpListener::bind("0.0.0.0:8080")
+            .await
+            .unwrap();
+
+    println!("Gateway online at 0.0.0.0:8080");
+
+    axum::serve(listener, app)
+        .await
+        .unwrap();
+}iron-giant/Cargo.toml
 [package]
 name = "iron-giant"
 version = "0.1.0"
@@ -23,4 +127,36 @@ fn main() {
 
         std::thread::sleep(Duration::from_secs(5));
     }
+}control-plane/Cargo.toml
+[package]
+name = "control-plane"
+version = "0.1.0"
+edition = "2021"
+control-plane/src/main.rs
+use std::time::Duration;
+
+fn main() {
+use std::time::Duration;
+}workers/Cargo.tom
+[package]
+name = "workers"
+version = "0.1.0"
+edition = "2021
+workers/src/main.rs
+
+fn main() {
+
+    loop {
+        println!("👷 Worker active");
+        std::thread::sleep(Duration::from_secs(3));
+    }
 }
+    loop {
+        println!("⚙️ Control plane synchronized");
+        std::thread::sleep(Duration::from_secs(5));
+    }
+cd titan-cloud-osv
+docker compose up --build
+http://localhost:8080
+ip addr
+http://YOUR_SERVER_IP:8080
