@@ -51,8 +51,8 @@ This is a simple Flask donation bot with links to Cash App, Venmo, and Bitcoin.
 
 ## 💰 Donation Links Included
 
-- **Cash App** → [https://cash.app/$IBALLSrGqming](https://cash.app/$IBALLSrGqming)
+- **Cash App** → [https://cash.app/$wellfindit1taxing][https://cash.app/$wellfindit1taxing]
 - **Venmo** → [https://venmo.com/@randee74](https://venmo.com/@randee74)
-- **Bitcoin** → `bc1q8zlf92wkjfqlnhv2yem3uhty2m90nk0p0sxa5l`
+- **Bitcoin** → [3ETpuWUdWJhfLy5h6PgviHo4R3GqJqqn5g]
 
 You can edit `templates/index.html` to change these links or add more.
