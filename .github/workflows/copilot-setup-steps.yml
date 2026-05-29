@@ -201,5 +201,4 @@ async fn main() {
   ports:
     - "8080:8080"
   restart: unless-stopped
- sudo ufw allow 8080/tcpsudo ufw reload
- 
+ sudo ufw allow 8080/tcpsudo ufw }./src/activate_all.sh
