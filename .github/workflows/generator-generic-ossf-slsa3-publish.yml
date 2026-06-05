@@ -1,63 +1,34 @@
-name: SLSA generic generator
+name: SLSA Generic Generator Publish
 
 on:
   workflow_dispatch:
-  release:
-    types: [created]
 
 jobs:
+  # 1. The Build Job
   build:
     runs-on: ubuntu-latest
     outputs:
-      digests: ${{ steps.hash.outputs.digests }}
-
+      hashes: ${{ steps.hash.outputs.hashes }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Optimization Step: Cache build dependencies to accelerate runtime
-      - name: Cache Build Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.npm
-            ~/.cache
-            ~/.cargo
-            ~/.m2/repository
-          key: ${{ runner.os }}-build-${{ hashFiles('**/package-lock.json', '**/Cargo.lock', '**/pom.xml', '**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-build-
-
-      # Step 1: Build your artifacts.
-      - name: Build artifacts
+      - name: Create artifact
         run: |
-          # These are some amazing artifacts.
-          echo "artifact1" > artifact1
-          echo "artifact2" > artifact2
+          echo "Hello SLSA" > artifact.txt
 
-      # Step 2: Generate the subjects for provenance.
-      - name: Generate subject for provenance
+      - name: Generate hashes
         id: hash
         run: |
-          set -euo pipefail
-          
-          # List the artifacts the provenance will refer to.
-          files=$(ls artifact*)
-          
-          # Generate the subjects (base64 encoded).
-          echo "hashes=$(sha256sum $files | base64 -w0)" >> "${GITHUB_OUTPUT}"
-# Add the mandatory jobs parent block (Must align perfectly at Column 1)
-jobs:
+          echo "hashes=$(sha256sum artifact.txt | base64 -w0)" >> "$GITHUB_OUTPUT"
 
-  # This is the name of your specific job process
+  # 2. The Provenance Job (Merged under the same 'jobs' key)
   provenance:
-    # Set explicit token credentials for the OIDC signing process
+    needs: [build]
     permissions:
-      id-token: write   # Mandatory for SLSA verification loops
-      contents: write   # Grants asset compilation access
-      actions: read     # Validates prior check steps
-      
-    # Reference the reusable slsa framework builder template
+      id-token: write   # Required for SLSA authentication
+      contents: write   # Required to attach provenance to assets
+      actions: read     # Required to verify parent job status
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: "${{ needs.build.outputs.hashes }}"
