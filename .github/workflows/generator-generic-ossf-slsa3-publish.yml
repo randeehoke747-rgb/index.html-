@@ -47,7 +47,7 @@ jobs:
           # Generate the subjects (base64 encoded).
           echo "hashes=$(sha256sum $files | base64 -w0)" >> "${GITHUB_OUTPUT}"
 
-  provenance:
+provenance:
     needs: [build]
     permissions:
       actions: read    # To read the workflow path.
@@ -58,3 +58,5 @@ jobs:
       base64-subjects: "${{ needs.build.outputs.digests }}"
       # Dynamically sets to true ONLY if triggered by an official release event
       upload-assets: ${{ github.event_name == 'release' }}
+
+  
