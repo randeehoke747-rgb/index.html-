@@ -1,3 +1,39 @@
+name: SLSA generic generator
+
+on:
+  workflow_dispatch:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      digests: ${{ steps.hash.outputs.digests }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Optimization Step: Cache build dependencies to accelerate runtime
+      - name: Cache Build Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache
+            ~/.cargo
+            ~/.m2/repository
+          key: ${{ runner.os }}-build-${{ hashFiles('**/package-lock.json', '**/Cargo.lock', '**/pom.xml', '**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
+      # Step 1: Build your artifacts.
+      - name: Build artifacts
+        run: |
+          # These are some amazing artifacts.
+          echo "artifact1" > artifact1
+          echo "artifact2" > artifact2
 
       # Step 2: Generate the subjects for provenance.
       - name: Generate subject for provenance
@@ -20,4 +56,5 @@
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: "${{ needs.build.outputs.digests }}"
-      upload-assets: true
+      # Dynamically sets to true ONLY if triggered by an official release event
+      upload-assets: ${{ github.event_name == 'release' }}
