@@ -1,9 +1,80 @@
-mkdir titan-cloud-os
-cd titan-cloud-ostitan-cloud-os
-docker-compose.ymlversion: "3.9"
+name: Copilot Agent Environment Setup
+on:
+  workflow_dispatch:
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Configure Firewall Access
+        run: |
+          sudo ufw allow 8080
+
+      - name: Run Activation Hook Script
+        run: |
+          chmod +x ./src/activate_all.sh
+          ./src/activate_all.sh
+Use code with caution.2. Separate into Dedicated Sub-FilesThe underlying program code requires placement in dedicated project directories rather than inside the setup YAML file:Rust Application (gateway/src/main.rs)Place your Axum web application logic here:rustuse axum::{Router, routing::get};
+use std::fs;
+
+#[tokio::main]
+async fn main() {
+    let app = Router::new()
+        .route("/", get(|| async { 
+            fs::read_to_string("/web/index.html").unwrap_or_else(|_| "UI missing".into()) 
+        }))
+        .route("/health", get(|| async { "OK" }))
+        .route("/state", get(|| async { "RUNNING" }));
+
+    // FIXED NETWORK BIND
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
+    println!("Titan Gateway running on 0.0.0.0:8080");
+    
+    axum::serve(listener, app).await.unwrap();
+}
+Use code with caution.Docker Compose Blueprint (docker-compose.yml)Move your service architecture to the root folder configuration block:yamlversion: "3.8"
 
 services:
+  gateway:
+    image: rust:latest
+    container_name: titan-gateway
+    working_dir: /app
+    volumes:
+      - ./gateway:/app
+      - ./web:/web
+    command: bash -c "cargo run"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped }
+use axum::{Router, routing::get};
+use std::fs;
 
+#[tokio::main]
+async fn main() {
+    let app = Router::new()
+        .route("/", get(|| async { 
+            fs::read_to_string("/web/index.html").unwrap_or_else(|_| "UI missing".into()) 
+        }))
+        .route("/health", get(|| async { "OK" }))
+        .route("/state", get(|| async { "RUNNING" }));
+
+    // FIXED NETWORK BIND
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
+    println!("Titan Gateway running on 0.0.0.0:8080");
+    
+    axum::serve(listener, app).await.unwrap();
+}
+version: "3.8"
+
+services:
   gateway:
     image: rust:latest
     container_name: titan-gateway
@@ -15,194 +86,3 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
-
-  control-plane:
-    image: rust:latest
-    container_name: titan-control-plane
-    working_dir: /app
-    volumes:
-      - ./control-plane:/app
-    command: bash -c "cargo run"
-    restart: unless-stopped
-
-  iron-giant:
-    image: rust:latest
-    container_name: iron-giant
-    working_dir: /app
-    volumes:
-      - ./iron-giant:/app
-    command: bash -c "cargo run"
-    restart: unless-stopped
-
-  worker:
-    image: rust:latest
-    container_name: titan-worker
-    working_dir: /app
-    volumes:
-      - ./workers:/app
-    command: bash -c "cargo run"
-    restart: unless-stopped
-    mkdir gateway
-mkdir control-plane
-mkdir iron-giant
-mkdir workers
-mkdir webweb/index.html<!DOCTYPE html>
-<html>
-<head>
-  <title>Titan Cloud Desktop</title>
-</head>
-
-<body style="background:#0b1020;color:white;font-family:sans-serif">
-
-<h1>☁️ Titan Cloud Desktop</h1>
-
-<p>Status: ONLINE</p>
-<p>Iron Giant: ACTIVE</p>
-
-<button onclick="checkHealth()">
-Health Check
-</button>
-
-<script>
-async function checkHealth() {
-  const res = await fetch('/health');
-  const txt = await res.text();
-  alert(txt);
-}
-</script>
-
-</body>
-</html>gateway/Cargo.toml[package]
-name = "gateway"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-axum = "0.7"
-tokio = { version = "1", features = ["full"] }gateway/src/main.rs
-use axum::{Router, routing::get};
-use std::fs;
-
-#[tokio::main]
-async fn main() {
-
-    let app = Router::new()
-        .route("/", get(|| async {
-            fs::read_to_string("/web/index.html")
-                .unwrap_or("UI missing".into())
-        }))
-        .route("/health", get(|| async { "OK" }));
-
-    // IMPORTANT FIX
-    let listener =
-        tokio::net::TcpListener::bind("0.0.0.0:8080")
-            .await
-            .unwrap();
-
-    println!("Gateway online at 0.0.0.0:8080");
-
-    axum::serve(listener, app)
-        .await
-        .unwrap();
-}iron-giant/Cargo.toml
-[package]
-name = "iron-giant"
-version = "0.1.0"
-edition = "2021"
-iron-giant/src/main.rs
-use std::time::Duration;
-
-fn main() {
-
-    loop {
-
-        let cpu = 0.72;
-        let latency = 120.0;
-
-        if cpu > 0.85 {
-            println!("📈 SCALE UP");
-        } else if latency > 200.0 {
-            println!("🌍 ROUTE SHIFT");
-        } else {
-            println!("🧠 SYSTEM HEALTHY");
-        }
-
-        std::thread::sleep(Duration::from_secs(5));
-    }
-}control-plane/Cargo.toml
-[package]
-name = "control-plane"
-version = "0.1.0"
-edition = "2021"
-control-plane/src/main.rs
-use std::time::Duration;
-
-fn main() {
-use std::time::Duration;
-}workers/Cargo.tom
-[package]
-name = "workers"
-version = "0.1.0"
-edition = "2021
-workers/src/main.rs
-
-fn main() {
-
-    loop {
-        println!("👷 Worker active");
-        std::thread::sleep(Duration::from_secs(3));
-    }
-}
-    loop {
-        println!("⚙️ Control plane synchronized");
-        std::thread::sleep(Duration::from_secs(5));
-    }
-cd titan-cloud-osv
-docker compose up --build
-http://localhost:8080
-ip addr
-http://YOUR_SERVER_IP:8080
-docker compose ps
-docker compose logs -f
-gateway/src/main.rs
-use axum::{Router, routing::get};
-use std::fs;
-
-#[tokio::main]
-async fn main() {
-
-    let app = Router::new()
-        .route("/", get(|| async {
-            fs::read_to_string("/web/index.html")
-                .unwrap_or("UI missing".into())
-        }))
-        .route("/health", get(|| async { "OK" }))
-        .route("/state", get(|| async { "RUNNING" }));
-
-    // ✅ FIXED NETWORK BIND
-    let listener =
-        tokio::net::TcpListener::bind("0.0.0.0:8080")
-            .await
-            .unwrap();
-
-    println!("Titan Gateway running on 0.0.0.0:8080");
-
-    axum::serve(listener, app)
-        .await
-        .unwrap(); loop
-}ports:
-  - "8080:8080"
-  gateway:
-  image: rust:latest
-  container_name: titan-gateway
-  working_dir: /app
-  volumes:
-    - ./gateway:/app
-    - ./web:/web
-  command: bash -c "cargo run"
-  ports:
-    - "8080:8080"
-  restart: unless-stopped
- sudo ufw allow 8080
- tcpsudo ufw }
- ./src/activate_all.sh
