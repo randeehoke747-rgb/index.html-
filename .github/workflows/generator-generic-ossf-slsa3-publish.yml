@@ -46,17 +46,20 @@ jobs:
           
           # Generate the subjects (base64 encoded).
           echo "hashes=$(sha256sum $files | base64 -w0)" >> "${GITHUB_OUTPUT}"
+# Add the mandatory jobs parent block (Must align perfectly at Column 1)
+jobs:
 
-provenance:
-    needs: [build]
+  # This is the name of your specific job process
+  provenance:
+    # Set explicit token credentials for the OIDC signing process
     permissions:
-      actions: read    # To read the workflow path.
-      id-token: write  # To sign the provenance.
-      contents: write  # To add assets to a release.
+      id-token: write   # Mandatory for SLSA verification loops
+      contents: write   # Grants asset compilation access
+      actions: read     # Validates prior check steps
+      
+    # Reference the reusable slsa framework builder template
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
-      base64-subjects: "${{ needs.build.outputs.digests }}"
-      # Dynamically sets to true ONLY if triggered by an official release event
-      upload-assets: ${{ github.event_name == 'release' }}
+      base64-subjects: "${{ needs.build.outputs.hashes }}"
+      upload-assets: true
 
-  
