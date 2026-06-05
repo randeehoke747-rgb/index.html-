@@ -42,3 +42,7 @@ jobs:
             echo "Warning: Provenance generation did not succeed"
             exit 0  # Continue instead of failing
           fi
+  provenance:
+   needs: [build]
+   continue-on-error: true
+  # ... rest of config
