@@ -21,6 +21,7 @@ jobs:
         id: hash
         run: |
           echo "hashes=$(sha256sum artifact.txt | base64 -w0)" >> "$GITHUB_OUTPUT"
+          
           echo "digest=$(sha256sum artifact.txt | awk 
  '{print $1}')" >> "$GITHUB_OUTPUT
 
