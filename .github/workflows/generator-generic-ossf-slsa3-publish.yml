@@ -31,7 +31,7 @@ jobs:
     with:
       base64-subjects: "${{ needs.build.outputs.hashes }}"
       upload-assets: false   # Changed to false to allow workflow_dispatch runs to pass
-final:
+  final:
     needs: [provenance]
     if: always()  # Run regardless of previous job status
     runs-on: ubuntu-latest
