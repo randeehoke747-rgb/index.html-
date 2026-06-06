@@ -34,3 +34,5 @@ jobs:
         base64-subjects: ${{ needs.build.outputs.hashes }}
         upload-assets: true
         compile-generator: false
+        use-rustup: to manage targets and compilers.
+        • Compile Code: Build the project using cargo build -release
