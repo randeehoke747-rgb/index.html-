@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: titan-grafana-dashboards
+  namespace: titan-agents
+  labels:
+    grafana_dashboard: "1"
+data:
+  titan-performance.json: |
+    {
+      "editable": true,
+      "id": 1024,
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Accumulated Stablecoin Profits",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [{ "expr": "titan_accumulated_profit_usd" }],
+          "fieldConfig": { "defaults": { "unit": "short" } }
+        },
+        {
+          "type": "graph",
+          "title": "Mempool Transactions Processed",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [{ "expr": "rate(titan_mempool_tx_processed_total[5m])" }]
+        },
+        {
+          "type": "stat",
+          "title": "Honeypots Intercepted",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [{ "expr": "titan_honeypots_intercepted_total" }]
+        },
+        {
+          "type": "stat",
+          "title": "Successful Interceptions",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [{ "expr": "titan_successful_interceptions_total" }]
+        }
+      ],
+      "refresh": "5s",
+      "title": "Titan Multi-Agent Control Board"
+    }
