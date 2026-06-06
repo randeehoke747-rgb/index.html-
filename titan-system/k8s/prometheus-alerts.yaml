@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: titan-agent-alerts
+  namespace: titan-agents
+  labels:
+    role: alert-rules
+    release: kube-prometheus-stack
+spec:
+  groups:
+  - name: titan.agent.mempool.rules
+    interval: 30s
+    rules:
+    - alert: HighHoneypotDensityDetected
+      expr: rate(titan_honeypots_intercepted_total[5m]) * 1000 > 10
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Massive influx of on-chain honeypots intercepted"
+        description: "Honeypot interception rate exceeds threshold"
+    
+    - alert: LowProfitabilityWindow
+      expr: titan_accumulated_profit_usd < 1000
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "System profitability below expected threshold"
+        description: "Accumulated profit is lower than expected levels"

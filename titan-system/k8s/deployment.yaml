@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: titan-agent-core
+  namespace: titan-agents
+  labels:
+    app: titan-agent
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: titan-agent
+  template:
+    metadata:
+      labels:
+        app: titan-agent
+    spec:
+      containers:
+      - name: agent-runtime
+        image: ghcr.io/your-username/titan-agent-core:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: grpc-bridge
+          containerPort: 50051
+        - name: mesh-metrics
+          containerPort: 8080
+        env:
+        - name: DATABASE_URL
+          value: "postgres://postgres:titan_secure_password@titan-ledger-db:5432/titan"
+        - name: EVM_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: titan-crypto-vault
+              key: evm-private-key
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
