@@ -29,9 +29,7 @@ type Shared = Arc<Mutex<Vec<Child>>>;
 #[tokio::main]
 async fn main() {
     let state: Shared = Arc::new(Mutex::new(vec![]));
-
-    let start_state = state.clone();
-    let start = warp::path!("api" / "start")
+    let start_state = state.clone() 
         .and(warp::post())
         .map(move || {
             let mut procs = start_state.lock().unwrap();
