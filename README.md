@@ -61,6 +61,8 @@ To quickly get everything running:
 184'
 Short v
 
+ ## how to deploy ./src/activate.all.sh
+
 1. Launch Backend: On your ChromeOS device, execute your one-shot launcher script (e.g.,./src/activate_all.sh)to boot the backend cluster and gRPC bridge.
 
 2. Verify Status: Ensure the PostgreSQL ledger database and core pods are active before proceeding.
