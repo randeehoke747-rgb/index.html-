@@ -112,3 +112,10 @@ pre {
     padding: 20px;
 }cargo run
 http://localhost:8080
+}
+
+import { FullWidthProfile } from 'ethereum-identity-kit'
+ 
+export default function Home() {
+  return <FullWidthProfile addressOrName="cottons.eth" />
+}
