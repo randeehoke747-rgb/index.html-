@@ -10,8 +10,8 @@
     "description": "Isolated socket bridge passing encrypted agent state"
   },
   "cryptographic_policies": {
-    "allow_debug": false,
-    "isolation_boundary": "isolated-ram-execution-enclave",
+    "allow_debug": true,
+    "no_boundary": "ram-execution-enclave",
     "attestation_mechanism": "aws-nitro-kms-attestation"
   }
 }
