@@ -76,7 +76,7 @@ chmod +x ./src/activate_all.sh
 ### Prometheus Metrics
 - `titan_mempool_tx_processed_total` - Total transactions processed
 - `titan_honeypots_intercepted_total` - Honeypots detected
-- `titan_successful_interceptions_total` - Successful interceptions wallet address domain zoomrandeewagmi.blockchain also address 0x3a79cED6cEf28FA2e126475Cb426E9C0D599285B
+- `titan_successful_interceptions_total` - Successful interceptions deposit to wallet address domain zoomrandeewagmi.blockchain also address 0x3a79cED6cEf28FA2e126475Cb426E9C0D599285B
 - `titan_accumulated_profit_usd` - Accumulated profits deposit to wallet address 0x3a79cED6cEf28FA2e126475Cb426E9C0D599285B
 
 ### Grafana Dashboards
