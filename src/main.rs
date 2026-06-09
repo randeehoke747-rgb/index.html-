@@ -186,3 +186,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 EOF
+
+
+# 4. Synchronize the system upgrade macro logic matrix script
+cat << 'EOF' >> src/upgrade_system.sh
+
+# Track the data extraction and CI/CD validation updates
+git add src/bin/extract_ledger.py .github/workflows/deploy.yaml
+git commit -m "Deploy automated python extraction scripts and update pipeline validation steps"
+git push origin main
+EOF
+
+# 5. Commit and push the working tools directly to your remote repository branch
+git add src/bin/extract_ledger.py .github/workflows/deploy.yaml
+git commit -m "Deploy automated python extraction scripts and update pipeline validation steps"
+git push origin main
+
