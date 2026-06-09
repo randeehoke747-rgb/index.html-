@@ -35,4 +35,4 @@ requests==2.31.0
 websockets==12.0
 base58==2.1.1
 click==8.1.7
-EOF
+
