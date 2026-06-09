@@ -46,21 +46,6 @@ async fn main() {
             "Titan devnet started"
         });
 
-    let stop_state = state.clone();
-    let stop = warp::path!("api" / "stop")
-        .and(warp::post())
-        .map(move || {
-            let mut procs = stop_state.lock().unwrap();
-
-            for p in procs.iter_mut() {
-                let _ = p.kill();
-            }
-
-            procs.clear();
-
-            "Titan devnet stopped"
-        });
-
     let web = warp::fs::dir("web");
 
     let routes = start.or(stop).or(web);
