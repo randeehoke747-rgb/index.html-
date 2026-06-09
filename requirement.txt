@@ -1,0 +1,21 @@
+# --- Core Database & Ledger Persistence Engine Extensions ---
+sqlx-py==0.1.2
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+
+# --- Blockchain Interception & Coinbase API Interfaces ---
+coinbase-advanced-py==1.1.2
+web3==6.19.0
+eth-account==0.11.0
+cryptography==42.0.5
+
+# --- Production Observability & Prometheus Export Tools ---
+prometheus-client==0.20.0
+statsd==4.0.1
+
+# --- Cryptographic & High-Frequency Utility Libraries ---
+pydantic==2.7.1
+requests==2.31.0
+websockets==12.0
+base58==2.1.1
+click==8.1.7
