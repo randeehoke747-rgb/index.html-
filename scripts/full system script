@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+
+# Titan AI SRE System v3
+# Diagnostics + Intelligence + Self-Healing
+
+set +e
+
+NAMESPACE="titan-agents"
+STATE_FILE="/tmp/titan_state.log"
+
+info(){ echo -e "\033[1;34m[INFO]\033[0m $1"; }
+warn(){ echo -e "\033[1;33m[WARN]\033[0m $1"; }
+ok(){ echo -e "\033[1;32m[✓]\033[0m $1"; }
+brain(){ echo -e "\033[1;36m[AI]\033[0m $1"; }
+
+echo "═══════════════════════════════════════════════════════════════"
+echo " TITAN AI SRE SYSTEM v3 (Diagnostics + Learning + Healing)"
+echo "═══════════════════════════════════════════════════════════════"
+echo ""
+
+# -------------------------------------------------------
+# 1. COLLECT SYSTEM STATE (L1)
+# -------------------------------------------------------
+
+PODS=$(kubectl get pods -n "$NAMESPACE" --no-headers 2>/dev/null)
+DEPLOY=$(kubectl get deploy -n "$NAMESPACE" --no-headers 2>/dev/null)
+EVENTS=$(kubectl get events -n "$NAMESPACE" --sort-by=.metadata.creationTimestamp 2>/dev/null | tail -30)
+
+FAILED=$(echo "$PODS" | grep -E "Error|CrashLoopBackOff|Failed" | wc -l | tr -d ' ')
+PENDING=$(echo "$PODS" | grep Pending | wc -l | tr -d ' ')
+RUNNING=$(echo "$PODS" | grep Running | wc -l | tr -d ' ')
+
+RESTARTS=$(kubectl get pods -n "$NAMESPACE" -o jsonpath='{.items[*].status.containerStatuses[*].restartCount}' 2>/dev/null \
+| awk '{for(i=1;i<=NF;i++) s+=$i} END {print s+0}')
+
+ENDPOINTS=$(kubectl get endpoints -n "$NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+
+# -------------------------------------------------------
+# 2. AI DIAGNOSTIC ENGINE (L1 → ROOT CAUSE)
+# -------------------------------------------------------
+
+brain "Running root-cause analysis..."
+
+ROOT_CAUSE="unknown"
+SEVERITY="low"
+
+if [ -z "$PODS" ]; then
+    ROOT_CAUSE="deployment_missing"
+    SEVERITY="critical"
+elif [ "$FAILED" -gt 0 ]; then
+    ROOT_CAUSE="runtime_crash"
+    SEVERITY="high"
+elif [ "$PENDING" -gt 0 ]; then
+    ROOT_CAUSE="scheduling_failure"
+    SEVERITY="medium"
+elif [ "$RESTARTS" -gt 10 ]; then
+    ROOT_CAUSE="crash_loop"
+    SEVERITY="high"
+elif [ "$ENDPOINTS" -eq 0 ]; then
+    ROOT_CAUSE="service_misconfig"
+    SEVERITY="medium"
+fi
+
+echo ""
+brain "Detected Root Cause: $ROOT_CAUSE"
+brain "Severity Level: $SEVERITY"
+
+# Save state for learning engine
+echo "$(date) | $ROOT_CAUSE | $SEVERITY | r:$RUNNING f:$FAILED p:$PENDING" >> "$STATE_FILE"
+
+echo ""
+
+# -------------------------------------------------------
+# 3. AI SRE LEARNING ENGINE (L2)
+# -------------------------------------------------------
+
+brain "Analyzing historical patterns..."
+
+if [ -f "$STATE_FILE" ]; then
+    LAST_10=$(tail -10 "$STATE_FILE")
+
+    CRASH_COUNT=$(echo "$LAST_10" | grep -c "runtime_crash")
+    SCHED_COUNT=$(echo "$LAST_10" | grep -c "scheduling_failure")
+
+    if [ "$CRASH_COUNT" -gt 3 ]; then
+        warn "Pattern detected: repeated runtime crashes"
+        brain "INSIGHT: Likely unstable deployment or bad image version"
+    fi
+
+    if [ "$SCHED_COUNT" -gt 3 ]; then
+        warn "Pattern detected: repeated scheduling failures"
+        brain "INSIGHT: Cluster resource or node constraint issue"
+    fi
+fi
+
+echo ""
+
+# -------------------------------------------------------
+# 4. SELF-HEALING ENGINE (L3)
+# -------------------------------------------------------
+
+brain "Evaluating self-healing actions..."
+
+HEALING_ACTION="none"
+
+if [ "$ROOT_CAUSE" = "runtime_crash" ]; then
+    HEALING_ACTION="restart_deployment"
+elif [ "$ROOT_CAUSE" = "scheduling_failure" ]; then
+    HEALING_ACTION="scale_cluster_or_relax_constraints"
+elif [ "$ROOT_CAUSE" = "service_misconfig" ]; then
+    HEALING_ACTION="restart_service"
+fi
+
+echo ""
+
+if [ "$HEALING_ACTION" != "none" ]; then
+    warn "AUTONOMOUS ACTION RECOMMENDED: $HEALING_ACTION"
+
+    case "$HEALING_ACTION" in
+
+        restart_deployment)
+            echo "→ Executing safe restart..."
+            kubectl rollout restart deployment/titan-agent-core -n "$NAMESPACE"
+            ok "Deployment restarted"
+            ;;
+
+        restart_service)
+            echo "→ Restarting service..."
+            kubectl delete pod -n "$NAMESPACE" -l app=titan-agent
+            ok "Pods recycled"
+            ;;
+
+        scale_cluster_or_relax_constraints)
+            warn "Manual intervention required:"
+            echo "→ Check node resources: kubectl top nodes"
+            echo "→ Adjust requests/limits"
+            ;;
+    esac
+else
+    ok "No healing actions required"
+fi
+
+echo ""
+
+# -------------------------------------------------------
+# 5. FINAL AI SUMMARY
+# -------------------------------------------------------
+
+echo "═══════════════════════════════════════════════════════════════"
+brain "TITAN AI SYSTEM SUMMARY"
+
+echo "State: $ROOT_CAUSE"
+echo "Severity: $SEVERITY"
+echo "Running Pods: $RUNNING"
+echo "Failed Pods: $FAILED"
+echo "Restarts: $RESTARTS"
+
+echo ""
+
+if [ "$SEVERITY" = "critical" ]; then
+    warn "SYSTEM STATUS: CRITICAL"
+elif [ "$SEVERITY" = "high" ]; then
+    warn "SYSTEM STATUS: DEGRADED"
+else
+    ok "SYSTEM STATUS: STABLE"
+fi
+
+echo ""
+brain "NEXT ACTION: monitor logs + validate deployment health"
+echo "═══════════════════════════════════════════════════════════════"
