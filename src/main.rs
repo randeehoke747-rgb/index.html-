@@ -337,3 +337,25 @@ p=Path('/mnt/data/titan_browser_launcher_safe.txt')
 p.write_text(content)
 
 print(f"Saved {p}")
+
+mod database;
+
+use warp::Filter;
+
+#[tokio::main]
+async fn main() {
+    database::init_db().expect("database init failed");
+
+    let health = warp::path!("api" / "health")
+        .map(|| "OK");
+
+    let web = warp::fs::dir("web");
+
+    let routes = health.or(web);
+
+    println!("Titan running on http://localhost:8080");
+
+    warp::serve(routes)
+        .run(([127, 0, 0, 1], 8080))
+        .await;
+}
