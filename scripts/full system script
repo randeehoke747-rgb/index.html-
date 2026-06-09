@@ -168,3 +168,10 @@ fi
 echo ""
 brain "NEXT ACTION: monitor logs + validate deployment health"
 echo "═══════════════════════════════════════════════════════════════"
+
+Track structural adjustments to fix protocol buffer metadata generation blocks
+git add src/lib.rs src/main.rs
+git commit -m "Fix metadata generation: Route tonic code inclusions through localized library crates"
+git push origin main
+EOF
+
