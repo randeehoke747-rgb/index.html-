@@ -1,0 +1,119 @@
+# 1. Update the isolation network policy to accept secure Tailscale overlay mesh traffic
+cat << 'EOF' > k8s/network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: titan-agent-isolation-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: titan-agent
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: titan-agent
+    ports:
+    - protocol: TCP
+      port: 50051
+    - protocol: TCP
+      port: 9090
+  # Explicitly permit traffic traveling from your Tailscale node (100.100.204.23) into the mesh
+  - from:
+    - ipBlock:
+        cidr: 100.100.204.23/32
+    ports:
+    - protocol: TCP
+      port: 50051
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: titan-ledger
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+    ports:
+    - protocol: TCP
+      port: 443
+EOF
+
+# 2. Add an explicit verification client targeting your private Tailscale node boundary
+cat << 'EOF' > src/bin/tailscale_verify.rs
+use titan_proto::agent_bridge_service_client::AgentBridgeServiceClient;
+use titan_proto::TelemetryRequest;
+use tokio_stream::StreamExt;
+use tonic::transport::{Channel, ClientTlsConfig, Certificate};
+
+pub mod titan_proto {
+    tonic::include_proto!("titan.agents.v1");
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Loading secure infrastructure TLS validation certificates...");
+    let cert_pem = std::fs::read_to_string("enclave/server.crt")?;
+    let cert = Certificate::from_pem(cert_pem);
+    
+    let tls_config = ClientTlsConfig::new()
+        .ca_certificate(cert)
+        .domain_name("titan-agent-bridge-service");
+
+    // Route traffic through the verified Tailscale overlay mesh IP target
+    let tailscale_node_ip = "https://100.100.204.23:50051";
+    println!("Routing secure gRPC connection over Tailscale network endpoint: {}", tailscale_node_ip);
+    
+    let channel = Channel::from_static(tailscale_node_ip)
+        .tls_config(tls_config)?
+        .connect()
+        .await?;
+
+    let mut client = AgentBridgeServiceClient::new(channel);
+
+    let request = tonic::Request::new(TelemetryRequest {
+        agent_id: "tailscale-mesh-edge-agent-01".to_string(),
+        timestamp: chrono::Utc::now().timestamp(),
+        session_token: "tailscale_mesh_handshake_2026".to_string(),
+    });
+
+    println!("Initiating transaction deposit interception pipeline over Tailscale...");
+    let mut stream = client.stream_telemetry(request).await?.into_inner();
+
+    while let Some(response) = stream.next().await {
+        let res = response?;
+        println!(
+            "📥 [Tailscale Node Intercept] -> Asset: {}, State: {}",
+            res.metadata.get("target_priority_asset").unwrap_or(&"UNKNOWN".to_string()),
+            res.status
+        );
+    }
+
+    Ok(())
+}
+EOF
+
+# 3. Update build automation manifests to incorporate the new verification path
+cat << 'EOF' >> src/main.rs
+
+#[cfg(test)]
+mod tailscale_verify;
+EOF
+
+# 4. Save and track the adjustments inside your local system upgrade script
+cat << 'EOF' >> src/upgrade_system.sh
+
+# Track newly appended Tailscale tunnel module bindings
+git add k8s/network-policy.yaml src/bin/tailscale_verify.rs src/main.rs
+git commit -m "Configure network boundaries to enable secure ingress routing via Tailscale VPN mesh target"
+git push origin main
+EOF
+
+# 5. Run compilation validations to check structural configurations
+cargo check --bin tailscale_verify
