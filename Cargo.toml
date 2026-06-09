@@ -25,4 +25,189 @@ prometheus = { version = "0.13", features = ["protobuf"] }
 lazy_static = "1.4"
 aes-gcm = "0.10"
 zip = { version = "0.6", features = ["deflate"] }
-axum = "0.7"
+Axum = "0.7"
+}[package]
+
+name = "titan-browser-launcher"
+
+version = "1.0.0"
+
+edition = "2021"
+
+[dependencies]
+
+tokio = { version = "1", features = ["full"] }
+
+warp = "0.3"
+
+serde = { version = "1", features = ["derive"] }
+
+serde_json = "1"
+
+src/main.rs
+
+-----------
+
+use warp::Filter;
+
+#[tokio::main]
+
+async fn main() {
+
+    let start = warp::path!("api" / "start")
+
+        .and(warp::post())
+
+        .map(|| "Titan local services started");
+
+    let stop = warp::path!("api" / "stop")
+
+        .and(warp::post())
+
+        .map(|| "Titan local services stopped");
+
+    let health = warp::path!("api" / "health")
+
+        .map(|| "OK");
+
+    let web = warp::fs::dir("web");
+
+    let routes = start.or(stop).or(health).or(web);
+
+    println!("Open browser: http://localhost:8080");
+
+    warp::serve(routes).run(([127,0,0,1],8080)).await;
+
+}
+
+web/index.html
+
+--------------
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>Titan Dashboard</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+<h1>Titan Wallet Recovery Dashboard</h1>
+
+<button onclick="startNet()">Launch Services</button>
+
+<button onclick="stopNet()">Stop Services</button>
+
+<h3>Known Wallet Addresses</h3>
+
+<textarea id="wallets" rows="8" cols="60"
+
+placeholder="Paste public wallet addresses only"></textarea>
+
+<button onclick="saveWallets()">Save List</button>
+
+<pre id="status">Ready</pre>
+
+<script src="app.js"></script>
+
+</body>
+
+</html>
+
+web/app.js
+
+----------
+
+async function startNet() {
+
+  const r = await fetch('/api/start', {method:'POST'});
+
+  status(await r.text());
+
+}
+
+async function stopNet() {
+
+  const r = await fetch('/api/stop', {method:'POST'});
+
+  status(await r.text());
+
+}
+
+function saveWallets() {
+
+  localStorage.setItem("wallets",
+
+    document.getElementById("wallets").value);
+
+  status("Wallet list saved locally.");
+
+}
+
+function status(msg){
+
+  document.getElementById("status").textContent = msg;
+
+}
+
+window.onload = () => {
+
+  document.getElementById("wallets").value =
+
+    localStorage.getItem("wallets") || "";
+
+};
+
+web/style.css
+
+-------------
+
+body { font-family: Arial; padding: 40px; }
+
+button { padding: 10px 20px; margin: 5px; }
+
+textarea { width: 100%; max-width: 700px; }
+
+pre { background:#eee; padding:20px; }
+
+Build / Run
+
+-----------
+
+cargo run
+
+Then open:
+
+http://localhost:8080
+
+Legitimate Recovery Tips
+
+------------------------
+
+1. Search old backups for wallet.dat / keystore files.
+
+2. Check password managers for exchange logins.
+
+3. Review old email for exchange registrations.
+
+4. Use public addresses to track balances.
+
+5. Contact official wallet vendor support.
+
+END FILE
+
+'''
+
+p=Path('/mnt/data/titan_browser_launcher_safe.txt')
+
+p.write_text(content)
+
+print(f"Saved {p}")
