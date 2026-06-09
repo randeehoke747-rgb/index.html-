@@ -1,7 +1,6 @@
 flask
 gunicorn
 # --- Core Database & Ledger Persistence Engine Extensions ---
-sqlx-py==0.1.2
 psycopg2-binary==2.9.9
 asyncpg==0.29.0
 
