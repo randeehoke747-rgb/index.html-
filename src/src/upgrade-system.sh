@@ -32,3 +32,9 @@ EOF
 git add requirements.txt
 git commit -m "Deploy Python automation requirements framework for complementary chain analytics scripts"
 git push origin main
+
+# Track structural adjustments to fix protocol buffer metadata generation blocks
+git add src/lib.rs src/main.rs
+git commit -m "Fix metadata generation: Route tonic code inclusions through localized library crates"
+git push origin main
+
