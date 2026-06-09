@@ -391,3 +391,17 @@ pub fn init_db() -> Result<()> {
 
     Ok(())
 }
+
+use rusqlite::{Connection, Result};
+
+pub fn add_note(title: &str, note: &str) -> Result<()> {
+    let conn = Connection::open("titan.db")?;
+
+    conn.execute(
+        "INSERT INTO recovery_notes (title, note)
+         VALUES (?1, ?2)",
+        [title, note],
+    )?;
+
+    Ok(())
+}
