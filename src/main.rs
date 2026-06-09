@@ -405,3 +405,10 @@ pub fn add_note(title: &str, note: &str) -> Result<()> {
 
     Ok(())
 }
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }
