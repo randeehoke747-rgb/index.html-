@@ -359,3 +359,35 @@ async fn main() {
         .run(([127, 0, 0, 1], 8080))
         .await;
 }
+
+use rusqlite::{Connection, Result};
+
+pub fn init_db() -> Result<()> {
+    let conn = Connection::open("titan.db")?;
+
+    conn.execute(
+        "
+        CREATE TABLE IF NOT EXISTS recovery_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            note TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        ",
+        [],
+    )?;
+
+    conn.execute(
+        "
+        CREATE TABLE IF NOT EXISTS wallet_inventory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            address TEXT NOT NULL,
+            label TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        ",
+        [],
+    )?;
+
+    Ok(())
+}
