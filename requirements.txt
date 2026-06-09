@@ -21,7 +21,8 @@ requests==2.31.0
 websockets==12.0
 base58==2.1.1
 click==8.1.7
-# 1. Overwrite the requirements file in the root directory of your workspace
+
+# --- Overwrite the requirements file in the root directory of your workspace
 cat << 'EOF' > requirements.txt
 psycopg2-binary==2.9.9
 asyncpg==0.29.0
