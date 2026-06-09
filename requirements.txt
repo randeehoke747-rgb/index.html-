@@ -1,4 +1,4 @@
-bflask
+flask
 gunicorn
 # --- Core Database & Ledger Persistence Engine Extensions ---
 psycopg2-binary==2.9.9
