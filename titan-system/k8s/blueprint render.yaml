@@ -8,7 +8,7 @@
 │   ├── server.crt                   # Secure transport layer certificate (Add to .gitignore)
 │   └── server.key                   # Cryptographic transport private key (Add to .gitignore)
 ├── k8s/
-    ├── launcher-deployment.yank
+    ├── launcher-deployment.yaml
     ├── launcher-service.yaml
     └── ingress.yaml
 │   ├── database-ledger.yaml         # StatefulSet definition tracking database storage
