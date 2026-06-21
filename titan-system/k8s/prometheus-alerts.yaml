@@ -10,7 +10,7 @@ spec:
   groups:
   - name: titan.agent.mempool.rules
     interval: 30s
-    rules:
+    rules: Prometheus-titan-autonomous-agents-agents-determine-rules
     - alert: HighHoneypotDensityDetected
       expr: rate(titan_honeypots_intercepted_total[5m]) * 1000 > 10
       for: 2m
