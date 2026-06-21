@@ -7,7 +7,10 @@
 │   ├── enclave-config.json          # Enclave asset orchestration priority matrix
 │   ├── server.crt                   # Secure transport layer certificate (Add to .gitignore)
 │   └── server.key                   # Cryptographic transport private key (Add to .gitignore)
-├── k8s/
+├── k8s/ 
+    ├── launcher-deployment.yaml
+    ├── launcher-service.yaml
+    └── ingress.yaml
 │   ├── database-ledger.yaml         # StatefulSet definition tracking database storage
 │   ├── deployment.yaml              # Double-scaled replica cluster runtime pods configuration
 │   ├── grafana-dashboard.yaml       # Storage metrics visualizer panels blueprint
