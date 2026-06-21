@@ -21,6 +21,7 @@ jobs:
         id: hash
         run: |
           echo "hashes=$(sha256sum artifact.txt | base64 -w0)" >> "$GITHUB_OUTPUT"
+ fix/slsa-yaml-syntax
           echo "digest=$(sha256sum artifact.txt | awk>>'{print $1}')" >> "$GITHUB_OUTPUT
         provenance:
         needs: [build]
@@ -36,3 +37,15 @@ jobs:
         compile-generator: false
         use-rustup: to manage targets and compilers.
         • Compile Code: Build the project using cargo build -release
+          echo "digest=$(sha256sum artifact.txt | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+  provenance:
+    needs: [build]
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.9.0
+      upload-assets: true
+      compile-generator: false
+    

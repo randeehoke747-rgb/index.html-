@@ -1,0 +1,17 @@
+{
+  "enclave_name": "titan-crypto-enclave",
+  "version": "1.0.0",
+  "vcpus": 2,
+  "memory_mib": 512,
+  "security_profile": "high-performance-sandbox",
+  "nitro_enclaves_sdk_version": "1.3.0",
+  "communication_channel": {
+    "vsock_port": 50052,
+    "description": "Isolated socket bridge passing encrypted agent state"
+  },
+  "cryptographic_policies": {
+    "allow_debug": true,
+    "no_boundary": "ram-execution-enclave",
+    "attestation_mechanism": "aws-nitro-kms-attestation"
+  }
+}

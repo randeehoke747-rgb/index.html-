@@ -29,9 +29,7 @@ type Shared = Arc<Mutex<Vec<Child>>>;
 #[tokio::main]
 async fn main() {
     let state: Shared = Arc::new(Mutex::new(vec![]));
-
-    let start_state = state.clone();
-    let start = warp::path!("api" / "start")
+    let start_state = state.clone() 
         .and(warp::post())
         .map(move || {
             let mut procs = start_state.lock().unwrap();
@@ -46,21 +44,6 @@ async fn main() {
             }
 
             "Titan devnet started"
-        });
-
-    let stop_state = state.clone();
-    let stop = warp::path!("api" / "stop")
-        .and(warp::post())
-        .map(move || {
-            let mut procs = stop_state.lock().unwrap();
-
-            for p in procs.iter_mut() {
-                let _ = p.kill();
-            }
-
-            procs.clear();
-
-            "Titan devnet stopped"
         });
 
     let web = warp::fs::dir("web");
@@ -114,3 +97,18 @@ pre {
     padding: 20px;
 }cargo run
 http://localhost:8080
+}
+
+use rusqlite::{Connection, Result};
+
+pub fn add_note(title: &str, note: &str) -> Result<()> {
+    let conn = Connection::open("titan.db")?;
+
+    conn.execute(
+        "INSERT INTO recovery_notes (title, note)
+         VALUES (?1, ?2)",
+        [title, note],
+    )?;
+
+    Ok(())
+}

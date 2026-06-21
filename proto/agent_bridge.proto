@@ -1,0 +1,42 @@
+syntax = "proto3";
+package titan.agents.v1;
+
+service AgentBridge {
+  rpc StreamTelemetry (TelemetryRequest) returns (stream TelemetryFrame);
+  rpc AuthorizeAction (ActionExecutionRequest) returns (ActionExecutionResponse);
+  rpc StreamMultiHopAlerts (MultiHopAlertRequest) returns (stream MultiHopAlertFrame);
+}
+
+message TelemetryRequest {
+  string client_uuid = 1;
+  string authorization_token = 2;
+}
+
+message TelemetryFrame {
+  int64 timestamp = 1;
+  string agent_id = 2;
+  string status_payload = 3;
+  bytes payload_nonce = 4;
+}
+
+message ActionExecutionRequest {
+  string target_tx_hash = 1;
+  string target_contract = 2;
+  bool forced_override = 3;
+}
+
+message ActionExecutionResponse {
+  bool success = 1;
+  string confirmation_sig = 2;
+}
+
+message MultiHopAlertRequest {
+  string authentication_token = 1;
+}
+
+message MultiHopAlertFrame {
+  int64 timestamp = 1;
+  string target_tx_hash = 2;
+  string initial_amount_in = 3;
+  repeated string token_routing_path = 4;
+}

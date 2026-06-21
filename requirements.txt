@@ -1,2 +1,17 @@
 flask
 gunicorn
+asyncpg
+psycopg2-binary
+cryptography
+coinbase-advanced-py
+web3
+eth-account
+prometheus-client
+statsd
+pydantic
+requests
+websockets
+base58
+click
+
+
