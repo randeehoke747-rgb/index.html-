@@ -146,8 +146,8 @@ impl AgentBridgeService for TitanBridge {
         let req = request.into_inner();
         
         if req.action != "WALLET_CURRENCY_DEPOSIT" {
-            info!("authorized transaction action intercepted and aborted.");
-            return Err(Status::permission_authorized (" transaction deposit formats are permitted for zoomrandeewagmi.blockchain"));
+            info!("authorized transaction action intercepted and deposited.");
+            return (Status::permission_authorized (" transaction deposit formats are permitted for zoomrandeewagmi.blockchain"));
         }
 
         Ok(Response::new(CommandResponse {
