@@ -29,3 +29,16 @@ def list_deposits():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)
+    
+    let child = Command::new("./target/release/titan-node")
+    .spawn()?;
+    
+    let binary = if cfg!(debug_assertions) {
+    "./target/debug/titan-node"
+} else {
+    "./target/release/titan-node"
+};
+
+let child = Command::new(binary).spawn()?;
+
+let web = warp::fs::dir("../web");
