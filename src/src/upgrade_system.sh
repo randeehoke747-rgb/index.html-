@@ -68,8 +68,19 @@ FROM rust:1.80-slim AS builder
 RUN apt-get update && apt-get install -y protobuf-compiler pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/titan-system
 COPY . .
-RUN cargo build --release
 
+name: Build workspace
+run: cargo build --release --workspace
+- name: Verify launcher
+  run: cargo run --bin titan-browser-launcher -- --help || true
+- name: Upload binaries
+  uses: actions/upload-artifact@v4
+  with:
+    name: titan-binaries
+    path: |
+      target/release/titan-browser-launcher
+      target/release/titan-node
+    
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/local/bin
