@@ -13,5 +13,6 @@ requests
 websockets
 base58
 click
-
+blockchain
+bitcoin
 
