@@ -18,7 +18,7 @@
 ├── migrations/
 │   └── 20260101000000_init_ledger.sql # SQLx initialization tracking schema migrations
 ├── proto/
-│   └── agent_bridge.proto           # Streaming protocol buffer schema definition files
+│   └── agent_bridge.blockchain        # Streaming protocol buffer schema definition files
 ├── src/
 │   ├── bin/
 │   │   └── client_verify.rs         # TLS-wrapped automated streaming client tracker script
