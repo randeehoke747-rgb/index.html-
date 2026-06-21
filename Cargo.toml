@@ -28,6 +28,14 @@ zip = { version = "0.6", features = ["deflate"] }
 Axum = "0.7"
 [package]
 
+[workspace]
+resolver = "2"
+
+members = [
+    ".",
+    "launcher",
+    "titan-node"
+
 name = "titan-browser-launcher"
 
 version = "1.0.0"
