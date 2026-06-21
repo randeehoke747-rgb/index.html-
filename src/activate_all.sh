@@ -65,3 +65,9 @@ echo "  1. Configure EVM_PRIVATE_KEY in secrets"
 echo "  2. Port-forward: kubectl port-forward svc/titan-agent-bridge-svc 50051:50051 -n titan-agents"
 echo "  3. Connect mobile dashboard to $DETECTED_IP:50051"
 echo ""
+
+RUN cargo build --release --workspace
+COPY --from=builder /app/target/release/titan-browser-launcher .
+COPY --from=builder /app/target/release/titan-node .
+COPY --from=builder /app/web ./web
+CMD ["./titan-browser-launcher"]
