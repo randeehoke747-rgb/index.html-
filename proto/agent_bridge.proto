@@ -3,7 +3,7 @@ package titan.agents.v1;
 
 service AgentBridge {
   rpc StreamTelemetry (TelemetryRequest) returns (stream TelemetryFrame);
-  rpc AuthorizeAction (ActionExecutionRequest) returns (ActionExecutionResponse);
+  rpc AuthorizeAction (ActionExecutionRequest) returns (stream ActionExecutionResponse);
   rpc StreamMultiHopAlerts (MultiHopAlertRequest) returns (stream MultiHopAlertFrame);
 }
 
