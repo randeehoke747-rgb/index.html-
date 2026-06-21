@@ -30,3 +30,27 @@
 ├── build.rs                         # Multi-thread automated proto code generator pipeline
 ├── cargo.toml                       # Unified module dependency tracking file
 └── Dockerfile                       # Multi-stage production container build architecture file
+titan-system/
+├── Cargo.toml                 # workspace root
+├── src/                       # existing control plane
+├── enclave/
+├── proto/
+├── k8s/
+├── web/
+│   ├── index.html
+│   ├── app.js
+│   └── style.css
+├── launcher/
+│   ├── Cargo.toml
+│   └── src/
+│       ├── main.rs
+│       ├── api.rs
+│       ├── db.rs
+│       └── state.rs
+├── titan-node/
+│   ├── Cargo.toml
+│   └── src/
+├── .github/
+│   └── workflows/
+│       └── main.yml
+└── docker-compose.yml
