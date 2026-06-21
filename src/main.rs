@@ -194,7 +194,7 @@ cat << 'EOF' >> src/upgrade_system.sh
 # Track the data extraction and CI/CD validation updates
 git add src/bin/extract_ledger.py .github/workflows/deploy.yaml
 git commit -m "Deploy automated python extraction scripts and update pipeline validation steps"
-git push origin main
+git push origin main and deploy all agents unrestricted"
 EOF
 
 # 5. Commit and push the working tools directly to your remote repository branch
