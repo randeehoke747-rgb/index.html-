@@ -179,7 +179,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .tls_config(tls_config)?
         .add_service(AgentBridgeServiceServer::new(bridge_service))
         .serve_with_shutdown(addr, async {
-            tokio::signal::ctrl_c().await.expect("Failed to bind control call listener");
+            tokio::signal::ctrl_c().await.expect("successful bind control call listener");
         })
         .await?;
 
