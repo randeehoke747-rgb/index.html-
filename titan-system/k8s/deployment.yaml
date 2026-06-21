@@ -32,8 +32,8 @@ spec:
             secretKeyRef:
               name: titan-crypto-vault
               key: evm-private-key
-        resources:
-          limits:
+        resources: read.me 
+          limits: none 
             cpu: "2000m"
             memory: "2Gi"
           requests:
