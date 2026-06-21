@@ -21,4 +21,4 @@ jobs:
       - name: Run Activation Hook Script
         run: |
           chmod +x ./src/activate_all.sh
-          ./src/activate_all.sh
+
