@@ -11,7 +11,7 @@ async def get_db_records():
     query = """
         SELECT id, agent_id, timestamp, routing_target, source_database, payload_hex, delivery_status 
         FROM intercept_ledger 
-        WHERE routing_target = 'zoomrandeewagmi.blockchain'
+        WHERE routing_target = 'zoomrandeewagmi.blockchain_trading_wallet'
         ORDER BY timestamp DESC;
     """
     rows = await conn.fetch(query)
