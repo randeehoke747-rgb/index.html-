@@ -1,0 +1,38 @@
+name: CI with Postgres
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: appuser
+          POSTGRES_PASSWORD: apppassword
+          POSTGRES_DB: appdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgres://appuser:apppassword@localhost:5432/appdb
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for Postgres
+        run: |
+          for i in {1..15}; do
+            pg_isready -h localhost -p 5432 && break
+            sleep 1
+          done
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Run schema
+        run: |
+          psql "$DATABASE_URL" -f db/init/schema.sql
+      - name: Run tests
+        run: |
+          echo "Add your test commands here"
