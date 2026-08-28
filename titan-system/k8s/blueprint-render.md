@@ -1,0 +1,37 @@
+# Repository blueprint (converted from `blueprint render.yaml`)
+
+.    
+├── .github/
+│   └── workflows/
+│       └── deploy.yaml              # GitHub Actions CI/CD workflow pipeline
+├── enclave/
+│   ├── api-credentials.json         # Security API token maps (Add to .gitignore)
+│   ├── enclave-config.json          # Enclave asset orchestration priority matrix
+│   ├── server.crt                   # Secure transport layer certificate (Add to .gitignore)
+│   └── server.key                   # Cryptographic transport private key (Add to .gitignore)
+├── k8s/
+    ├── launcher-deployment.yaml
+    ├── launcher-service.yaml
+    └── ingress.yaml
+│   ├── database-ledger.yaml         # StatefulSet definition tracking database storage
+│   ├── deployment.yaml              # Double-scaled replica cluster runtime pods configuration
+│   ├── grafana-dashboard.yaml       # Storage metrics visualizer panels blueprint
+│   ├── kustomization.yaml           # Core infrastructure resource linker matrix
+│   ├── network-policy.yaml          # Rigid pool boundary network isolation protocol
+│   ├── prometheus-alerts.yaml       # Storage spike alert and scraper configuration rules
+│   └── secrets.yaml                 # Core credentials layer secret layout (Add to .gitignore)
+├── migrations/
+│   └── 20260101000000_init_ledger.sql # SQLx initialization tracking schema migrations
+├── proto/
+│   └── agent_bridge.blockchain        # Streaming protocol buffer schema definition files
+├── src/
+│   ├── bin/
+│   │   └── client_verify.rs         # TLS-wrapped automated streaming client tracker script
+│   ├── activate_all.sh              # Local development system setup verification control script
+│   ├── integration_test.rs          # Targeted endpoint payload structural testing rules
+│   ├── main.rs                      # Core TLS transaction engine application code
+│   └── wipe_all.sh                  # Cluster teardown validation control execution script
+├── .gitignore                       # Repository exclusion patterns matrix
+├── build.rs                         # Multi-thread automated proto code generator pipeline
+├── cargo.toml                       # Unified module dependency tracking file
+└── Dockerfile                       # Multi-stage production container build architecture file

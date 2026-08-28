@@ -26,11 +26,14 @@ spec:
           containerPort: 8080
         env:
         - name: DATABASE_URL
-          value: "postgres://postgres:titan_secure_password@titan-ledger-db:5432/titan"
+          valueFrom:
+            secretKeyRef:
+              name: titan-secrets
+              key: database-url
         - name: EVM_PRIVATE_KEY
           valueFrom:
             secretKeyRef:
-              name: titan-crypto-vault
+              name: titan-secrets
               key: evm-private-key
         resources:
           limits:
