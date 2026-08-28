@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: agent-runtime
-        image: ghcr.io/your-username/titan-agent-core:latest
+        image: ghcr.io/your-username/titan-agent-core:v1.0.0
         imagePullPolicy: IfNotPresent
         ports:
         - name: grpc-bridge
@@ -32,8 +32,8 @@ spec:
             secretKeyRef:
               name: titan-crypto-vault
               key: evm-private-key
-        resources: read.me 
-          limits: none 
+        resources:
+          limits:
             cpu: "2000m"
             memory: "2Gi"
           requests:
