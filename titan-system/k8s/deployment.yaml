@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: agent-runtime
-        image: ghcr.io/your-username/titan-agent-core:latest
+        image: ghcr.io/your-username/titan-agent-core:v1.0.0
         imagePullPolicy: IfNotPresent
         ports:
         - name: grpc-bridge
@@ -26,14 +26,17 @@ spec:
           containerPort: 8080
         env:
         - name: DATABASE_URL
-          value: "postgres://postgres:titan_secure_password@titan-ledger-db:5432/titan"
+          valueFrom:
+            secretKeyRef:
+              name: titan-secrets
+              key: database-url
         - name: EVM_PRIVATE_KEY
           valueFrom:
             secretKeyRef:
-              name: titan-crypto-vault
+              name: titan-secrets
               key: evm-private-key
-        resources: read.me 
-          limits: none 
+        resources:
+          limits:
             cpu: "2000m"
             memory: "2Gi"
           requests:
