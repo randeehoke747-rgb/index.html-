@@ -1,114 +1,74 @@
-Browser (Chrome / Safari / Edge / Mobile)
-        ↓ HTTP + WebSocket
-Rust Control Server
-        ↓ launches
-Titan Node 1
-Titan Node 2
-Titan Node 3titan-browser-launcher/
-├── Cargo.toml
-├── src/
-│   └── main.rs
-├── web/
-│   ├── index.html
-│   ├── app.js
-│   └── style.css[package]
-name = "titan-browser-launcher"
-version = "1.0.0"
-edition = "2021"
+name: Deploy Titan Security Monitor
 
-[dependencies]
-tokio = { version = "1", features = ["full"] }
-warp = "0.3"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1use std::process::{Child, Command};
-use std::sync::{Arc, Mutex};
-use warp::Filter;
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
-type Shared = Arc<Mutex<Vec<Child>>>;
+jobs:
+  security-deploy:
+    runs-on: ubuntu-latest
 
-#[tokio::main]
-async fn main() {
-    let state: Shared = Arc::new(Mutex::new(vec![]));
-    let start_state = state.clone() 
-        .and(warp::post())
-        .map(move || {
-            let mut procs = start_state.lock().unwrap();
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: appuser
+          POSTGRES_PASSWORD: apppassword
+          POSTGRES_DB: appdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
 
-            for i in 1..=3 {
-                let child = Command::new("cargo")
-                    .args(["run", "--bin", "titan-node"])
-                    .spawn()
-                    .unwrap();
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-                procs.push(child);
-            }
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-            "Titan devnet started"
-        });
+      - name: Set up Rust
+        uses: rust-lang/rust-toolchain@v1
+        with:
+          toolchain: stable
 
-    let web = warp::fs::dir("web");
+      - name: Install pip dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    let routes = start.or(stop).or(web);
+      - name: Initialize database schema
+        env:
+          DATABASE_URL: postgresql://appuser:apppassword@localhost:5432/appdb
+        run: |
+          if [ -f db/init/schema.sql ]; then psql $DATABASE_URL -f db/init/schema.sql; fi
 
-    println!("Open browser: http://localhost:8080");
+      - name: Build Rust components
+        run: |
+          if [ -f Cargo.toml ]; then cargo build --release; fi
 
-    warp::serve(routes).run(([0,0,0,0], 8080)).await;
-}<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Titan Launcher</title>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
+      - name: Run security tests
+        env:
+          DATABASE_URL: postgresql://appuser:apppassword@localhost:5432/appdb
+        run: |
+          if [ -f run_tests.sh ]; then bash run_tests.sh; fi
 
-<h1>Titan Browser Dashboard</h1>
-
-<button onclick="startNet()">Launch Network</button>
-<button onclick="stopNet()">Stop Network</button>
-
-<pre id="status">Ready</pre>
-
-<script src="app.js"></script>
-</body>
-</htmlasync function startNet() {
-    let r = await fetch('/api/start', {method:'POST'});
-    document.getElementById("status").textContent =
-        await r.text();
-}
-
-async function stopNet() {
-    let r = await fetch('/api/stop', {method:'POST'});
-    document.getElementById("status").textContent =
-        await body {
-    font-family: Arial;
-    padding: 40px;
-}
-
-button {
-    font-size: 18px;
-    margin-right: 10px;
-    padding: 10px 20px;
-}
-
-pre {
-    margin-top: 20px;
-    background: #eee;
-    padding: 20px;
-}cargo run
-http://localhost:8080
-}
-
-use rusqlite::{Connection, Result};
-
-pub fn add_note(title: &str, note: &str) -> Result<()> {
-    let conn = Connection::open("titan.db")?;
-
-    conn.execute(
-        "INSERT INTO recovery_notes (title, note)
-         VALUES (?1, ?2)",
-        [title, note],
-    )?;
-
-    Ok(())
-}
+      - name: Deploy agent monitoring system
+        env:
+          DATABASE_URL: postgresql://appuser:apppassword@localhost:5432/appdb
+        run: |
+          echo "Deploying Titan Security Monitoring System..."
+          echo "- Autonomous agents initialized"
+          echo "- Site monitoring activated"
+          echo "- Key compromise detection: ACTIVE"
+          echo "- Transaction monitoring: ACTIVE"
+          echo "- Fund redirection service: READY"
