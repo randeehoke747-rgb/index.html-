@@ -19,7 +19,7 @@ base58
 click
 
 python-dotenv==1.0.0
-aiohttp==3.9.1
+aiohttp==3.14.3
 PyCryptodome==3.18.0
 
 
