@@ -8,7 +8,7 @@ web3==6.11.0
 eth-account==0.10.0
 prometheus-client
 statsd
-pydantic==2.5.0
+pydantic==2.13.5
 requests==2.31.0
 websockets
 base58
