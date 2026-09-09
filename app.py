@@ -1,7 +1,13 @@
 
 from flask import Flask, render_template
 
-app = Flask(__name__)
+app = Flask(__name__)@app.route("/health", methods=["GET"])
+def health():
+    return {
+        "status": "ok",
+        "service": "titan",
+        "activated": True
+    }, 200
 
 @app.route('/')
 def home():
