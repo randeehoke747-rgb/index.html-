@@ -1,17 +1,25 @@
+from flask import Flask, jsonify
+import os
 
-from flask import Flask, render_template
+app = Flask(__name__)
 
-app = Flask(__name__)@app.route("/health", methods=["GET"])
-def health():
-    return {
-        "status": "ok",
-        "service": "titan",
-        "activated": True
-    }, 200
 
-@app.route('/')
+@app.route("/", methods=["GET"])
 def home():
-    return render_template('index.html')
+    return jsonify({
+        "service": "Titan",
+        "status": "running"
+    })
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "healthy"
+    }), 200
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
