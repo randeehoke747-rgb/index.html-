@@ -168,20 +168,24 @@ impl MonitorService {
         session_id: &str,
         request: AssignAgentRequest,
     ) -> Option<HunterSession> {
+        let agent_name = request.agent_name.clone();
+        {
+            let agent = self.agents.get_mut(&agent_name)?;
+            agent.assign(session_id.to_owned());
+        }
         let session = self.sessions.get_mut(session_id)?;
-        let agent = self.agents.get_mut(&request.agent_name)?;
-        agent.assign(session_id.to_owned());
-        session.assigned_agent = Some(request.agent_name.clone());
+        session.assigned_agent = Some(agent_name.clone());
         session.state = SessionState::Active;
         session.last_activity_epoch_ms = now_epoch_ms();
+        let session_clone = session.clone();
         self.audit_events.push(AuditEvent {
             event_id: format!("session-assigned-{session_id}"),
             session_id: Some(session_id.to_owned()),
-            agent_name: Some(request.agent_name.clone()),
+            agent_name: Some(agent_name.clone()),
             kind: AuditEventKind::SessionAssigned,
             detail: format!(
                 "Operator {} assigned {} to session {}.",
-                request.operator_id, request.agent_name, session_id
+                request.operator_id, agent_name, session_id
             ),
             recorded_at_epoch_ms: now_epoch_ms(),
         });
@@ -191,7 +195,7 @@ impl MonitorService {
             "accepted",
             &format!("Assigned {} to session {}.", request.agent_name, session_id),
         );
-        Some(session.clone())
+        Some(session_clone)
     }
 
     pub fn relay_message(
@@ -203,7 +207,7 @@ impl MonitorService {
         if !findings.is_empty() {
             return Err(findings);
         }
-        let session = self.sessions.get_mut(session_id).ok_or_default()?;
+        let session = self.sessions.get_mut(session_id).ok_or_else(Vec::new)?;
         let now = now_epoch_ms();
         session.transcript.push(TranscriptEntry {
             author: request.author,
@@ -219,10 +223,13 @@ impl MonitorService {
             };
         }
         session.last_activity_epoch_ms = now;
+        let assigned_agent = session.assigned_agent.clone();
+        let transcript_len = session.transcript.len();
+        let session_clone = session.clone();
         self.audit_events.push(AuditEvent {
-            event_id: format!("message-relayed-{session_id}-{}", session.transcript.len()),
+            event_id: format!("message-relayed-{session_id}-{transcript_len}"),
             session_id: Some(session_id.to_owned()),
-            agent_name: session.assigned_agent.clone(),
+            agent_name: assigned_agent,
             kind: AuditEventKind::MessageRelayed,
             detail: "Relayed message into Hunter session transcript.".into(),
             recorded_at_epoch_ms: now,
@@ -233,7 +240,7 @@ impl MonitorService {
             "accepted",
             "Relayed message to Hunter session transcript.",
         );
-        Ok(session.clone())
+        Ok(session_clone)
     }
 
     pub fn close_session(
@@ -242,11 +249,14 @@ impl MonitorService {
         request: CloseSessionRequest,
     ) -> Option<HunterSession> {
         let session = self.sessions.get_mut(session_id)?;
+        let assigned_agent = session.assigned_agent.clone();
+        let operator_id = request.operator_id.clone();
         session.state = SessionState::Closed;
-        session.closed_by = Some(request.operator_id.clone());
+        session.closed_by = Some(operator_id.clone());
         session.close_reason = request.reason.clone();
         session.last_activity_epoch_ms = now_epoch_ms();
-        if let Some(agent_name) = &session.assigned_agent {
+        let session_clone = session.clone();
+        if let Some(agent_name) = &assigned_agent {
             if let Some(agent) = self.agents.get_mut(agent_name) {
                 agent.release();
             }
@@ -254,12 +264,9 @@ impl MonitorService {
         self.audit_events.push(AuditEvent {
             event_id: format!("session-closed-{session_id}"),
             session_id: Some(session_id.to_owned()),
-            agent_name: session.assigned_agent.clone(),
+            agent_name: assigned_agent,
             kind: AuditEventKind::SessionClosed,
-            detail: format!(
-                "Operator {} closed session {}.",
-                request.operator_id, session_id
-            ),
+            detail: format!("Operator {} closed session {}.", operator_id, session_id),
             recorded_at_epoch_ms: now_epoch_ms(),
         });
         self.record_command(
@@ -268,7 +275,7 @@ impl MonitorService {
             "accepted",
             &format!("Closed Hunter session {}.", session_id),
         );
-        Some(session.clone())
+        Some(session_clone)
     }
 
     pub fn handle_discord_command(
