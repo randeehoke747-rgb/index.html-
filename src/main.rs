@@ -425,16 +425,21 @@ async fn dispatch_discord_command(
         return Err((StatusCode::UNAUTHORIZED, Json(Vec::new())));
     }
     let mut monitor = state.monitor.write().await;
-    let dispatch = monitor.handle_discord_command(payload).map_err(|findings| {
-        let status = if findings.is_empty() {
-            StatusCode::NOT_FOUND
-        } else if findings.iter().any(|finding| finding.code.contains("allowlisted")) {
-            StatusCode::FORBIDDEN
-        } else {
-            StatusCode::BAD_REQUEST
-        };
-        (status, Json(findings))
-    })?;
+    let dispatch = monitor
+        .handle_discord_command(payload)
+        .map_err(|findings| {
+            let status = if findings.is_empty() {
+                StatusCode::NOT_FOUND
+            } else if findings
+                .iter()
+                .any(|finding| finding.code.contains("allowlisted"))
+            {
+                StatusCode::FORBIDDEN
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            (status, Json(findings))
+        })?;
     let snapshot = state
         .monitor_state_path
         .as_ref()
@@ -481,9 +486,17 @@ fn seed_agents(monitor: &mut MonitorService) {
         "hunter-prime:hunter:session_intake|message_relay;strategist-1:strategist:knowledge_retrieval;builder-1:builder:task_execution".into()
     });
 
-    for definition in definitions.split(';').map(str::trim).filter(|value| !value.is_empty()) {
+    for definition in definitions
+        .split(';')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         let mut parts = definition.split(':');
-        let Some(name) = parts.next().map(str::trim).filter(|value| !value.is_empty()) else {
+        let Some(name) = parts
+            .next()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
             continue;
         };
         let kind = parts.next().map(parse_kind).unwrap_or(AgentKind::Hunter);
@@ -555,7 +568,10 @@ async fn main() {
         .route("/commands", get(commands))
         .route("/sessions", get(sessions).post(create_session))
         .route("/sessions/:session_id/assign", post(assign_session))
-        .route("/sessions/:session_id/messages", post(relay_session_message))
+        .route(
+            "/sessions/:session_id/messages",
+            post(relay_session_message),
+        )
         .route("/sessions/:session_id/close", post(close_session))
         .route("/agents/heartbeat", post(register_heartbeat))
         .route("/agents/:agent_name/failure", post(report_agent_failure))

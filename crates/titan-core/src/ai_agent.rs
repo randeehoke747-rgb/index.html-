@@ -102,7 +102,9 @@ impl HunterClone {
     }
 
     pub fn is_available(&self) -> bool {
-        matches!(self.status, AgentStatus::Idle | AgentStatus::Assigned | AgentStatus::Degraded)
-            && self.consecutive_failures < 3
+        matches!(
+            self.status,
+            AgentStatus::Idle | AgentStatus::Assigned | AgentStatus::Degraded
+        ) && self.consecutive_failures < 3
     }
 }
