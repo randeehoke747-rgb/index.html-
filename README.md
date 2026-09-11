@@ -39,6 +39,7 @@ Hunter bot control plane for Titan AI agents, built with Rust and Axum.
 ## Legacy wallet-related variables
 The repository still keeps wallet and chain variables in `/home/runner/work/index.html-/index.html-/.env.example` for adjacent deployment artifacts and transaction-related integrations:
 - `SAFE_WALLET_ADDRESS`
+- `USDT_WALLET_ADDRESS`
 - `USDC_CONTRACT_ADDRESS`
 - `ETHEREUM_RPC_URL`
 - `ETHEREUM_CHAIN_ID`

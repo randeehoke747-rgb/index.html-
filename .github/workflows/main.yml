@@ -64,6 +64,7 @@ jobs:
         run: |
           echo "Validating Titan Security Monitor configuration..."
           python -c "import os; print('Safe Wallet:', os.getenv('SAFE_WALLET_ADDRESS', 'Not set'))"
+          python -c "import os; print('USDT Wallet:', os.getenv('USDT_WALLET_ADDRESS', 'Not set'))"
           python -c "import os; print('USDC Contract:', os.getenv('USDC_CONTRACT_ADDRESS', 'Not set'))"
           python -c "import os; print('Ethereum RPC:', 'Configured' if os.getenv('ETHEREUM_RPC_URL') else 'Not set')"
 
@@ -78,6 +79,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://appuser:apppassword@localhost:5432/appdb
           SAFE_WALLET_ADDRESS: ${{ secrets.SAFE_WALLET_ADDRESS }}
+          USDT_WALLET_ADDRESS: ${{ secrets.USDT_WALLET_ADDRESS }}
           ETHEREUM_RPC_URL: ${{ secrets.ETHEREUM_RPC_URL }}
           USDC_CONTRACT_ADDRESS: ${{ secrets.USDC_CONTRACT_ADDRESS }}
           ETHEREUM_CHAIN_ID: ${{ secrets.ETHEREUM_CHAIN_ID }}
@@ -85,6 +87,7 @@ jobs:
         run: |
           echo "🚀 Deploying Titan Security Monitoring System..."
           echo "✓ Safe Wallet Configured: $SAFE_WALLET_ADDRESS"
+          echo "✓ USDT Wallet Configured: $USDT_WALLET_ADDRESS"
           echo "✓ USDC Contract: $USDC_CONTRACT_ADDRESS"
           echo "✓ Ethereum Chain ID: $ETHEREUM_CHAIN_ID"
           echo ""
