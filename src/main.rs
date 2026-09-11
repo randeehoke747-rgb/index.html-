@@ -1,204 +1,577 @@
-use std::error::Error;
-use std::net::SocketAddr;
-use tonic::{transport::{Server, Identity, ServerTlsConfig}, Request, Response, Status};
-use tokio_stream::wrappers::ReceiverStream;
-use tracing::{info, error, Level};
-use tracing_subscriber::FmtSubscriber;
-use prometheus::{Registry, Counter, Gauge, opts, register_counter_with_registry, register_gauge_with_registry, Encoder, TextEncoder};
-use lazy_static::lazy_static;
-use hyper::{Body, Response as HyperResponse, Server as HyperServer};
-use hyper::service::{make_service_fn, service_fn};
-use sqlx::{PgPool, postgres::PgPoolOptions};
-use uuid::Uuid;
+use axum::{
+    extract::{Path, State},
+    http::{header, HeaderMap, StatusCode},
+    routing::{get, post},
+    Json, Router,
+};
+use serde_json::json;
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use titan_core::{
+    AgentCapability, AgentHeartbeat, AgentKind, AssignAgentRequest, AuditEvent,
+    CloseSessionRequest, CommandEvent, DiscordCommandRequest, HunterConfig, HunterSession,
+    MessageRelayRequest, MonitorService, MonitorSnapshot, MonitorStatus, SessionCreateRequest,
+    Vulnerability,
+};
+use tokio::sync::RwLock;
+use tracing::info;
 
-// Correct module targeting to pull from the library root metadata map
-use titan_agent_system::titan_proto::agent_bridge_service_server::{AgentBridgeService, AgentBridgeServiceServer};
-use titan_agent_system::titan_proto::{TelemetryRequest, TelemetryResponse, CommandRequest, CommandResponse};
-
-lazy_static! {
-    pub static ref REGISTRY: Registry = Registry::new();
-    pub static ref INTERCEPT_COUNTER: Counter = register_counter_with_registry!(
-        opts!("titan_intercepted_payloads_total", "Total blockchain payloads intercepted."),
-        REGISTRY
-    ).unwrap();
-    pub static ref DB_STORAGE_BYTES: Gauge = register_gauge_with_registry!(
-        opts!("titan_ledger_storage_bytes", "Current local database tracking ledger size in bytes."),
-        REGISTRY
-    ).unwrap();
+#[derive(Clone)]
+struct AppState {
+    monitor: Arc<RwLock<MonitorService>>,
+    operator_api_token: Option<String>,
+    discord_bot_token: Option<String>,
+    discord_ingest_token: Option<String>,
+    monitor_state_path: Option<PathBuf>,
 }
 
-#[derive(Debug)]
-pub struct TitanBridge {
-    db_pool: PgPool,
+#[derive(Clone)]
+struct RuntimeConfig {
+    operator_api_token: Option<String>,
+    discord_bot_token: Option<String>,
+    discord_ingest_token: Option<String>,
+    monitor_state_path: Option<PathBuf>,
+    strict_startup: bool,
 }
 
-impl TitanBridge {
-    pub fn new(pool: PgPool) -> Self {
-        Self { db_pool: pool }
+fn env_token(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+fn path_from_env(name: &str) -> Option<PathBuf> {
+    env_token(name).map(PathBuf::from)
+}
+
+fn runtime_config_from_env() -> RuntimeConfig {
+    RuntimeConfig {
+        operator_api_token: env_token("OPERATOR_API_TOKEN"),
+        discord_bot_token: env_token("DISCORD_BOT_TOKEN"),
+        discord_ingest_token: env_token("DISCORD_INGEST_TOKEN"),
+        monitor_state_path: path_from_env("MONITOR_STATE_PATH"),
+        strict_startup: strict_startup_from_env(),
     }
 }
 
-#[tonic::async_trait]
-impl AgentBridgeService for TitanBridge {
-    type StreamTelemetryStream = ReceiverStream<Result<TelemetryResponse, Status>>;
+fn strict_startup_from_env() -> bool {
+    matches!(
+        std::env::var("STRICT_STARTUP")
+            .ok()
+            .as_deref()
+            .map(str::trim),
+        Some("1" | "true" | "TRUE" | "yes" | "YES")
+    )
+}
 
-    async fn stream_telemetry(
-        &self,
-        request: Request<TelemetryRequest>,
-    ) -> Result<Response<Self::StreamTelemetryStream>, Status> {
-        let req = request.into_inner();
-        info!("Telemetry tracking verified for agent: {}", req.agent_id);
-        
-        let (tx, rx) = tokio::sync::mpsc::channel(128);
-        let pool = self.db_pool.clone();
-        
-        tokio::spawn(async move {
-            let target_endpoint = "zoomrandeewagmi.blockchain";
-            let asset_tiers = vec!["stablecoin", "bitcoin", "bitcoin_cash"];
+fn parse_csv_env(name: &str) -> Vec<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
-            for (idx, asset) in asset_tiers.iter().enumerate() {
-                INTERCEPT_COUNTER.inc();
-                DB_STORAGE_BYTES.add(512.0);
+fn hunter_config_from_env() -> HunterConfig {
+    HunterConfig {
+        hunter_identity: env_token("HUNTER_IDENTITY").unwrap_or_else(|| "hunter-prime".into()),
+        allowed_guilds: parse_csv_env("ALLOWED_GUILDS"),
+        allowed_channels: parse_csv_env("ALLOWED_CHANNELS"),
+        minimum_active_agents: std::env::var("MINIMUM_ACTIVE_AGENTS")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(2),
+    }
+}
 
-                let id = Uuid::new_v4();
-                let timestamp = chrono::Utc::now().timestamp();
-                
-                let tx_payload = vec![0xCB, 0xEE, idx as u8, 0x77]; 
-                let tx_hash_hex = hex::encode(&tx_payload);
+fn configuration_errors(config: &HunterConfig, runtime_config: &RuntimeConfig) -> Vec<String> {
+    let mut errors = Vec::new();
+    if config.hunter_identity.trim().is_empty() {
+        errors.push("HUNTER_IDENTITY is not configured.".to_owned());
+    }
+    if runtime_config.discord_bot_token.is_none() {
+        errors.push("DISCORD_BOT_TOKEN is not configured.".to_owned());
+    }
+    if runtime_config.operator_api_token.is_none() {
+        errors.push("OPERATOR_API_TOKEN is not configured.".to_owned());
+    }
+    if runtime_config.discord_ingest_token.is_none() {
+        errors.push("DISCORD_INGEST_TOKEN is not configured.".to_owned());
+    }
+    errors
+}
 
-                info!("Scanning Coinbase Network... Intercepted transaction targeting wallet destination. Routing payload -> {}", target_endpoint);
+fn expected_bearer_token(headers: &HeaderMap) -> Option<&str> {
+    let value = headers.get(header::AUTHORIZATION)?.to_str().ok()?.trim();
+    let mut parts = value.splitn(2, char::is_whitespace);
+    let scheme = parts.next()?;
+    if !scheme.eq_ignore_ascii_case("bearer") {
+        return None;
+    }
+    let token = parts.next()?.trim();
+    if token.is_empty() {
+        None
+    } else {
+        Some(token)
+    }
+}
 
-                let db_write = sqlx::query!(
-                    "INSERT INTO intercept_ledger (id, agent_id, timestamp, routing_target, source_database, payload_hex, delivery_status) \
-                     VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                    id, req.agent_id, timestamp, target_endpoint, format!("coinbase_network_tx,{}", asset), tx_hash_hex, "WALLET_DEPOSIT_COMMITTED"
-                )
-                .execute(&pool)
-                .await;
+fn secure_token_eq(expected: &str, provided: &str) -> bool {
+    let expected = expected.as_bytes();
+    let provided = provided.as_bytes();
+    let mut diff = expected.len() ^ provided.len();
+    let max_len = expected.len().max(provided.len());
 
-                if let Err(e) = db_write {
-                    error!("Database log write error: {}", e);
-                }
-
-                let mut metadata = std::collections::HashMap::new();
-                metadata.insert("routing_target".to_string(), target_endpoint.to_string());
-                metadata.insert("network_source".to_string(), "coinbase_crypto_network".to_string());
-                metadata.insert("payload_restriction".to_string(), "WALLET_CURRENCY_DEPOSIT_ONLY".to_string());
-                metadata.insert("target_asset".to_string(), asset.to_string());
-
-                let response = TelemetryResponse {
-                    agent_id: req.agent_id.clone(),
-                    timestamp,
-                    status: format!("COINBASE_NETWORK_TX_DEPOSIT_{}", asset.to_uppercase()),
-                    payload: tx_payload,
-                    metadata,
-                };
-                
-                if tx.send(Ok(response)).await.is_err() {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-            }
-        });
-
-        Ok(Response::new(ReceiverStream::new(rx)))
+    for index in 0..max_len {
+        let expected_byte = expected.get(index).copied().unwrap_or_default();
+        let provided_byte = provided.get(index).copied().unwrap_or_default();
+        diff |= usize::from(expected_byte ^ provided_byte);
     }
 
-    type ControlChannelStream = ReceiverStream<Result<CommandResponse, Status>>;
+    diff == 0
+}
 
-    async fn control_channel(
-        &self,
-        _request: Request<tonic::Streaming<CommandRequest>>,
-    ) -> Result<Response<Self::ControlChannelStream>, Status> {
-        Err(Status::unimplemented("Bi-directional control channel is WIP"))
+fn is_authorized(headers: &HeaderMap, expected_token: Option<&str>) -> bool {
+    match expected_token {
+        Some(expected_token) => expected_bearer_token(headers)
+            .map(|provided_token| secure_token_eq(expected_token, provided_token))
+            .unwrap_or(false),
+        None => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{expected_bearer_token, is_authorized, secure_token_eq};
+    use axum::http::{header, HeaderMap, HeaderValue};
+
+    fn headers_with_authorization(value: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_str(value).expect("valid header"),
+        );
+        headers
     }
 
-    async fn send_command(
-        &self,
-        request: Request<CommandRequest>,
-    ) -> Result<Response<CommandResponse>, Status> {
-        let req = request.into_inner();
-        
-        if req.action != "WALLET_CURRENCY_DEPOSIT" {
-            info!("Non-authorized transaction action intercepted and deposited.");
-            return (Status::permission_authorized ("transaction deposit formats are permitted for zoomrandeewagmi.blockchain"));
+    #[test]
+    fn bearer_token_parsing_accepts_standard_bearer_header() {
+        let header = format!("{} {}", "Bearer", "operator-token");
+        let headers = headers_with_authorization(&header);
+        assert_eq!(expected_bearer_token(&headers), Some("operator-token"));
+    }
+
+    #[test]
+    fn bearer_token_parsing_accepts_case_insensitive_scheme_and_extra_spaces() {
+        let headers = headers_with_authorization("   bearer    ingest-token   ");
+        assert_eq!(expected_bearer_token(&headers), Some("ingest-token"));
+    }
+
+    #[test]
+    fn bearer_token_parsing_rejects_missing_or_empty_token() {
+        let headers = headers_with_authorization("Bearer   ");
+        assert_eq!(expected_bearer_token(&headers), None);
+    }
+
+    #[test]
+    fn bearer_token_parsing_rejects_non_bearer_scheme() {
+        let headers = headers_with_authorization("Basic abc123");
+        assert_eq!(expected_bearer_token(&headers), None);
+    }
+
+    #[test]
+    fn secure_token_comparison_matches_identical_tokens_only() {
+        assert!(secure_token_eq("same-token", "same-token"));
+        assert!(!secure_token_eq("same-token", "different-token"));
+        assert!(!secure_token_eq("same-token", "same-token-extra"));
+    }
+
+    #[test]
+    fn authorization_requires_matching_expected_bearer_token() {
+        let header = format!("{} {}", "Bearer", "secret-token");
+        let headers = headers_with_authorization(&header);
+        assert!(is_authorized(&headers, Some("secret-token")));
+        assert!(!is_authorized(&headers, Some("other-token")));
+        assert!(!is_authorized(&headers, None));
+    }
+}
+
+async fn persist_snapshot(path: &PathBuf, snapshot: &MonitorSnapshot) -> Result<(), StatusCode> {
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    let body =
+        serde_json::to_vec_pretty(snapshot).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    tokio::fs::write(path, body)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+async fn health(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let monitor = state.monitor.read().await;
+    Json(json!({
+        "status": "ok",
+        "service": "hunter-clone-control-plane",
+        "ready": monitor.is_ready(state.discord_bot_token.is_some()),
+        "active_agents": monitor.active_agents(),
+        "available_agents": monitor.available_agents(),
+    }))
+}
+
+async fn ready(State(state): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
+    let monitor = state.monitor.read().await;
+    if monitor.is_ready(state.discord_bot_token.is_some()) {
+        Ok(Json(json!({
+            "status": "ready"
+        })))
+    } else {
+        Err(StatusCode::SERVICE_UNAVAILABLE)
+    }
+}
+
+async fn status(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let monitor = state.monitor.read().await;
+    let monitor_status: MonitorStatus = monitor.status(state.discord_bot_token.is_some());
+    let config = hunter_config_from_env();
+    let runtime_config = RuntimeConfig {
+        operator_api_token: state.operator_api_token.clone(),
+        discord_bot_token: state.discord_bot_token.clone(),
+        discord_ingest_token: state.discord_ingest_token.clone(),
+        monitor_state_path: state.monitor_state_path.clone(),
+        strict_startup: strict_startup_from_env(),
+    };
+    Json(json!({
+        "monitor": monitor_status,
+        "operator_auth_configured": state.operator_api_token.is_some(),
+        "discord_ingest_auth_configured": state.discord_ingest_token.is_some(),
+        "persistence_enabled": state.monitor_state_path.is_some(),
+        "strict_startup": runtime_config.strict_startup,
+        "configuration_errors": configuration_errors(&config, &runtime_config),
+    }))
+}
+
+async fn history(State(state): State<AppState>) -> Json<Vec<AuditEvent>> {
+    let monitor = state.monitor.read().await;
+    Json(monitor.audit_history().to_vec())
+}
+
+async fn commands(State(state): State<AppState>) -> Json<Vec<CommandEvent>> {
+    let monitor = state.monitor.read().await;
+    Json(monitor.command_events().to_vec())
+}
+
+async fn sessions(State(state): State<AppState>) -> Json<Vec<HunterSession>> {
+    let monitor = state.monitor.read().await;
+    Json(monitor.sessions())
+}
+
+async fn create_session(
+    State(state): State<AppState>,
+    Json(payload): Json<SessionCreateRequest>,
+) -> Result<(StatusCode, Json<HunterSession>), (StatusCode, Json<Vec<Vulnerability>>)> {
+    let mut monitor = state.monitor.write().await;
+    let session = monitor
+        .create_session(payload)
+        .map_err(|findings| (StatusCode::FORBIDDEN, Json(findings)))?;
+    let snapshot = state
+        .monitor_state_path
+        .as_ref()
+        .map(|_| monitor.snapshot());
+    drop(monitor);
+    if let (Some(path), Some(snapshot)) = (&state.monitor_state_path, snapshot.as_ref()) {
+        persist_snapshot(path, snapshot)
+            .await
+            .map_err(|status| (status, Json(Vec::new())))?;
+    }
+    Ok((StatusCode::ACCEPTED, Json(session)))
+}
+
+async fn assign_session(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(session_id): Path<String>,
+    Json(payload): Json<AssignAgentRequest>,
+) -> Result<Json<HunterSession>, StatusCode> {
+    if !is_authorized(&headers, state.operator_api_token.as_deref()) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let mut monitor = state.monitor.write().await;
+    let session = monitor
+        .assign_agent(&session_id, payload)
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let snapshot = state
+        .monitor_state_path
+        .as_ref()
+        .map(|_| monitor.snapshot());
+    drop(monitor);
+    if let (Some(path), Some(snapshot)) = (&state.monitor_state_path, snapshot.as_ref()) {
+        persist_snapshot(path, snapshot).await?;
+    }
+    Ok(Json(session))
+}
+
+async fn relay_session_message(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+    Json(payload): Json<MessageRelayRequest>,
+) -> Result<Json<HunterSession>, (StatusCode, Json<Vec<Vulnerability>>)> {
+    let mut monitor = state.monitor.write().await;
+    let session = monitor
+        .relay_message(&session_id, payload)
+        .map_err(|findings| {
+            let status = if findings.is_empty() {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            (status, Json(findings))
+        })?;
+    let snapshot = state
+        .monitor_state_path
+        .as_ref()
+        .map(|_| monitor.snapshot());
+    drop(monitor);
+    if let (Some(path), Some(snapshot)) = (&state.monitor_state_path, snapshot.as_ref()) {
+        persist_snapshot(path, snapshot)
+            .await
+            .map_err(|status| (status, Json(Vec::new())))?;
+    }
+    Ok(Json(session))
+}
+
+async fn close_session(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(session_id): Path<String>,
+    Json(payload): Json<CloseSessionRequest>,
+) -> Result<Json<HunterSession>, StatusCode> {
+    if !is_authorized(&headers, state.operator_api_token.as_deref()) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let mut monitor = state.monitor.write().await;
+    let session = monitor
+        .close_session(&session_id, payload)
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let snapshot = state
+        .monitor_state_path
+        .as_ref()
+        .map(|_| monitor.snapshot());
+    drop(monitor);
+    if let (Some(path), Some(snapshot)) = (&state.monitor_state_path, snapshot.as_ref()) {
+        persist_snapshot(path, snapshot).await?;
+    }
+    Ok(Json(session))
+}
+
+async fn register_heartbeat(
+    State(state): State<AppState>,
+    Json(payload): Json<AgentHeartbeat>,
+) -> StatusCode {
+    let mut monitor = state.monitor.write().await;
+    monitor.register_or_update_agent(payload);
+    let snapshot = state
+        .monitor_state_path
+        .as_ref()
+        .map(|_| monitor.snapshot());
+    drop(monitor);
+    if let (Some(path), Some(snapshot)) = (&state.monitor_state_path, snapshot.as_ref()) {
+        if persist_snapshot(path, snapshot).await.is_err() {
+            return StatusCode::INTERNAL_SERVER_ERROR;
         }
+    }
+    StatusCode::ACCEPTED
+}
 
-        Ok(Response::new(CommandResponse {
-            command_id: req.command_id,
-            success: true,
-            message: "Coinbase network transaction payload pushed to wallet destination".to_string(),
-            execution_result: vec![0xCB, 0x01],
-        }))
+async fn report_agent_failure(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(agent_name): Path<String>,
+) -> StatusCode {
+    if !is_authorized(&headers, state.operator_api_token.as_deref()) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let mut monitor = state.monitor.write().await;
+    if monitor.mark_agent_failure(&agent_name) {
+        let snapshot = state
+            .monitor_state_path
+            .as_ref()
+            .map(|_| monitor.snapshot());
+        drop(monitor);
+        if let (Some(path), Some(snapshot)) = (&state.monitor_state_path, snapshot.as_ref()) {
+            if persist_snapshot(path, snapshot).await.is_err() {
+                return StatusCode::INTERNAL_SERVER_ERROR;
+            }
+        }
+        StatusCode::ACCEPTED
+    } else {
+        StatusCode::NOT_FOUND
     }
 }
 
-async fn metrics_handler(_req: hyper::Request<Body>) -> Result<HyperResponse<Body>, hyper::Error> {
-    let encoder = TextEncoder::new();
-    let metric_families = REGISTRY.gather();
-    let mut buffer = Vec::new();
-    encoder.encode(&metric_families, &mut buffer).unwrap();
-    
-    Ok(HyperResponse::builder()
-        .status(200)
-        .header("Content-Type", encoder.format_type())
-        .body(Body::from(buffer))
-        .unwrap())
+async fn dispatch_discord_command(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<DiscordCommandRequest>,
+) -> Result<Json<titan_core::DiscordDispatch>, (StatusCode, Json<Vec<Vulnerability>>)> {
+    if !is_authorized(&headers, state.discord_ingest_token.as_deref()) {
+        return Err((StatusCode::UNAUTHORIZED, Json(Vec::new())));
+    }
+    let mut monitor = state.monitor.write().await;
+    let dispatch = monitor.handle_discord_command(payload).map_err(|findings| {
+        let status = if findings.is_empty() {
+            StatusCode::NOT_FOUND
+        } else if findings.iter().any(|finding| finding.code.contains("allowlisted")) {
+            StatusCode::FORBIDDEN
+        } else {
+            StatusCode::BAD_REQUEST
+        };
+        (status, Json(findings))
+    })?;
+    let snapshot = state
+        .monitor_state_path
+        .as_ref()
+        .map(|_| monitor.snapshot());
+    drop(monitor);
+    if let (Some(path), Some(snapshot)) = (&state.monitor_state_path, snapshot.as_ref()) {
+        persist_snapshot(path, snapshot)
+            .await
+            .map_err(|status| (status, Json(Vec::new())))?;
+    }
+    Ok(Json(dispatch))
+}
+
+fn port_from_env() -> u16 {
+    std::env::var("PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(8080)
+}
+
+fn parse_kind(value: &str) -> AgentKind {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "strategist" => AgentKind::Strategist,
+        "researcher" => AgentKind::Researcher,
+        "builder" => AgentKind::Builder,
+        "sentinel" => AgentKind::Sentinel,
+        _ => AgentKind::Hunter,
+    }
+}
+
+fn parse_capability(value: &str) -> Option<AgentCapability> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "session_intake" => Some(AgentCapability::SessionIntake),
+        "message_relay" => Some(AgentCapability::MessageRelay),
+        "task_execution" => Some(AgentCapability::TaskExecution),
+        "knowledge_retrieval" => Some(AgentCapability::KnowledgeRetrieval),
+        "moderation" => Some(AgentCapability::Moderation),
+        _ => None,
+    }
+}
+
+fn seed_agents(monitor: &mut MonitorService) {
+    let definitions = std::env::var("HUNTER_CLONES").unwrap_or_else(|_| {
+        "hunter-prime:hunter:session_intake|message_relay;strategist-1:strategist:knowledge_retrieval;builder-1:builder:task_execution".into()
+    });
+
+    for definition in definitions.split(';').map(str::trim).filter(|value| !value.is_empty()) {
+        let mut parts = definition.split(':');
+        let Some(name) = parts.next().map(str::trim).filter(|value| !value.is_empty()) else {
+            continue;
+        };
+        let kind = parts.next().map(parse_kind).unwrap_or(AgentKind::Hunter);
+        let capabilities = parts
+            .next()
+            .map(|value| value.split('|').filter_map(parse_capability).collect())
+            .unwrap_or_else(Vec::new);
+        monitor.register_or_update_agent(AgentHeartbeat {
+            agent_name: name.to_owned(),
+            kind,
+            capabilities,
+            assigned_session_id: None,
+        });
+    }
+}
+
+async fn monitor_from_env(runtime_config: &RuntimeConfig) -> MonitorService {
+    let config = hunter_config_from_env();
+    let loaded_snapshot = if let Some(path) = &runtime_config.monitor_state_path {
+        tokio::fs::read(path)
+            .await
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<MonitorSnapshot>(&bytes).ok())
+    } else {
+        None
+    };
+
+    if let Some(snapshot) = loaded_snapshot {
+        let mut monitor = MonitorService::from_snapshot(snapshot);
+        monitor.replace_config(config);
+        seed_agents(&mut monitor);
+        monitor
+    } else {
+        let mut monitor = MonitorService::new(config);
+        seed_agents(&mut monitor);
+        monitor
+    }
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::INFO)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber)?;
+async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()))
+        .init();
 
-    let db_url = "postgres://postgres_ledger:secure_titan_pass_2026@127.0.0.1:5432/titan_ledger";
-    let db_pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect_lazy(db_url)?;
+    let runtime_config = runtime_config_from_env();
+    let hunter_config = hunter_config_from_env();
+    let config_errors = configuration_errors(&hunter_config, &runtime_config);
+    if runtime_config.strict_startup && !config_errors.is_empty() {
+        panic!(
+            "strict startup configuration errors: {}",
+            config_errors.join(" ")
+        );
+    }
+    let app_state = AppState {
+        monitor: Arc::new(RwLock::new(monitor_from_env(&runtime_config).await)),
+        operator_api_token: runtime_config.operator_api_token,
+        discord_bot_token: runtime_config.discord_bot_token,
+        discord_ingest_token: runtime_config.discord_ingest_token,
+        monitor_state_path: runtime_config.monitor_state_path,
+    };
 
-    let cert = std::fs::read_to_string("enclave/server.crt")?;
-    let key = std::fs::read_to_string("enclave/server.key")?;
-    let identity = Identity::from_pem(cert, key);
-    let tls_config = ServerTlsConfig::new().identity(identity);
+    let app = Router::new()
+        .route("/", get(health))
+        .route("/health", get(health))
+        .route("/ready", get(ready))
+        .route("/status", get(status))
+        .route("/history", get(history))
+        .route("/commands", get(commands))
+        .route("/sessions", get(sessions).post(create_session))
+        .route("/sessions/:session_id/assign", post(assign_session))
+        .route("/sessions/:session_id/messages", post(relay_session_message))
+        .route("/sessions/:session_id/close", post(close_session))
+        .route("/agents/heartbeat", post(register_heartbeat))
+        .route("/agents/:agent_name/failure", post(report_agent_failure))
+        .route("/discord/commands", post(dispatch_discord_command))
+        .with_state(app_state);
 
-    let metrics_addr: SocketAddr = "0.0.0.0:9090".parse()?;
-    tokio::spawn(async move {
-        let make_svc = make_service_fn(|_conn| async { Ok::<_, hyper::Error>(service_fn(metrics_handler)) });
-        let server = HyperServer::bind(&metrics_addr).serve(make_svc);
-        let _ = server.await;
-    });
+    let port = port_from_env();
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
 
-    let addr: SocketAddr = "0.0.0.0:50051".parse()?;
-    let bridge_service = TitanBridge::new(db_pool);
+    info!("Hunter clone control plane listening on {}", addr);
 
-    info!("Secure TLS Coinbase Network Transaction Interception Engine online: {}", addr);
-    
-    Server::builder()
-        .tls_config(tls_config)?
-        .add_service(AgentBridgeServiceServer::new(bridge_service))
-        .serve_with_shutdown(addr, async {
-            tokio::signal::ctrl_c().await.expect("successful bind control call listener");
-        })
-        .await?;
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .unwrap_or_else(|error| panic!("failed to bind port {port}: {error}"));
 
-    Ok(())
+    axum::serve(listener, app)
+        .await
+        .expect("Hunter clone server stopped");
 }
-EOF
-
-
-# 4. Synchronize the system upgrade macro logic matrix script
-cat << 'EOF' >> src/upgrade_system.sh
-
-# Track the data extraction and CI/CD validation updates
-git add src/bin/extract_ledger.py .github/workflows/deploy.yaml
-git commit -m "Deploy automated python extraction scripts and update pipeline validation steps"
-git push origin main and deploy all agents unrestricted interceptions"
-EOF
-
-# 5. Commit and push the working tools directly to your remote repository branch
-git add src/bin/extract_ledger.py .github/workflows/deploy.yaml
-git commit -m "Deploy automated python extraction scripts and update pipeline validation steps"
-git push origin main
-
